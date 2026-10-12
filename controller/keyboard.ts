@@ -1,10 +1,16 @@
-import { useCallback, type RefObject } from "react";
-import { type ScrollBoxRenderable } from "gloomberb/ui";
+import { useCallback, useRef, type RefObject } from "react";
+import { type ScrollBoxRenderable, useUiCapabilities } from "gloomberb/ui";
 import { useShortcut } from "gloomberb/react";
 import { isPlainArrowDown, stopSearchFocusNavigation } from "gloomberb/utils";
 import { getAdjacentPredictionCategoryId } from "../categories";
-import { resolvePredictionKeyboardCommand } from "../keyboard";
-import { getAdjacentPredictionVenueScope } from "../navigation";
+import {
+  adjacentPredictionQueryTarget,
+  predictionArrowDirection,
+  predictionTabDirection,
+  resolvePredictionKeyboardCommand,
+  type PredictionQueryTarget,
+} from "../keyboard";
+import { getAdjacentPredictionBrowseTab, getAdjacentPredictionVenueScope } from "../navigation";
 import type {
   PredictionBrowseTab,
   PredictionCategoryId,
@@ -42,8 +48,12 @@ interface UsePredictionControllerKeyboardParams {
   selectedRow: PredictionListRow | null;
   selectedSummaryKey: string | null;
   sortedOutcomeMarkets: PredictionMarketSummary[];
+  browseTab: PredictionBrowseTab;
+  queryTargetRef: RefObject<PredictionQueryTarget | null>;
   blurSearch: () => void;
+  focusQueryTarget: (target: PredictionQueryTarget | null) => void;
   focusSearch: () => void;
+  openVenueMenu: () => void;
   selectBrowseTab: (tab: PredictionBrowseTab) => void;
   selectCategory: (categoryId: PredictionCategoryId) => void;
   selectMarket: (marketKey: string) => void;
@@ -63,14 +73,39 @@ export function usePredictionControllerKeyboard({
   selectedRow,
   selectedSummaryKey,
   sortedOutcomeMarkets,
+  browseTab,
+  queryTargetRef,
   blurSearch,
+  focusQueryTarget,
   focusSearch,
+  openVenueMenu,
   selectBrowseTab,
   selectCategory,
   selectMarket,
   setVenue,
   toggleWatchlist,
 }: UsePredictionControllerKeyboardParams) {
+  // The desktop view is click buttons, so the pane walks it. The terminal
+  // SegmentedControl walks itself while it is focused, and a second handler
+  // would step twice.
+  const cycleViewArrows = useUiCapabilities().nativePaneChrome === true;
+  const categoryRef = useRef(categoryId);
+  const venueRef = useRef(effectiveVenueScope);
+  const browseRef = useRef(browseTab);
+  categoryRef.current = categoryId;
+  venueRef.current = effectiveVenueScope;
+  browseRef.current = browseTab;
+
+  const moveQueryTarget = useCallback((direction: -1 | 1) => {
+    const next = adjacentPredictionQueryTarget(queryTargetRef.current, direction, hideTabs);
+    if (next == null) {
+      if (queryTargetRef.current != null) focusQueryTarget(null);
+      return false;
+    }
+    focusQueryTarget(next);
+    return true;
+  }, [focusQueryTarget, hideTabs, queryTargetRef]);
+
   const handleSearchNavigation = useCallback(
     (event: PredictionKeyboardEvent) => {
       if (!focused || !searchFocused) return;
@@ -92,9 +127,20 @@ export function usePredictionControllerKeyboard({
         event.stopPropagation?.();
         event.preventDefault?.();
         blurSearch();
+        return;
+      }
+
+      // Tab leaves the field for Venue, then the view. Shift+Tab leaves the
+      // field and continues to the previous pane.
+      const tab = predictionTabDirection(event);
+      if (tab === 1 && queryTargetRef.current === "search" && moveQueryTarget(1)) {
+        event.stopPropagation?.();
+        event.preventDefault?.();
+      } else if (tab === -1 && queryTargetRef.current === "search") {
+        focusQueryTarget(null);
       }
     },
-    [blurSearch, focused, searchFocused],
+    [blurSearch, focusQueryTarget, focused, moveQueryTarget, queryTargetRef, searchFocused],
   );
 
   const cycleDetailOutcome = useCallback(
@@ -162,7 +208,65 @@ export function usePredictionControllerKeyboard({
         return;
       }
 
-      if (event.repeat && command && command !== "move-down" && command !== "move-up") {
+      const tab = predictionTabDirection(event);
+      if (tab && moveQueryTarget(tab)) {
+        event.stopPropagation?.();
+        event.preventDefault?.();
+        return;
+      }
+
+      const queryTarget = queryTargetRef.current;
+      if (queryTarget === "venue" || queryTarget === "view") {
+        if (command === "escape" || command === "move-down") {
+          event.stopPropagation?.();
+          event.preventDefault?.();
+          focusQueryTarget(null);
+          return;
+        }
+        if (command === "move-up") {
+          event.stopPropagation?.();
+          event.preventDefault?.();
+          focusQueryTarget("search");
+          return;
+        }
+        const name = event.name?.toLowerCase();
+        if (name === "enter" || name === "return" || name === "space" || event.sequence === "\r" || event.sequence === " ") {
+          event.stopPropagation?.();
+          event.preventDefault?.();
+          if (queryTarget === "venue") openVenueMenu();
+          else focusQueryTarget(null);
+          return;
+        }
+        const arrow = predictionArrowDirection(event);
+        if (arrow && queryTarget === "view" && !cycleViewArrows) return;
+        if (arrow) {
+          event.stopPropagation?.();
+          event.preventDefault?.();
+          if (queryTarget === "venue") {
+            const nextVenue = getAdjacentPredictionVenueScope(venueRef.current, arrow);
+            venueRef.current = nextVenue;
+            setVenue(nextVenue);
+          } else {
+            const nextBrowse = getAdjacentPredictionBrowseTab(browseRef.current, arrow);
+            browseRef.current = nextBrowse;
+            selectBrowseTab(nextBrowse);
+          }
+          return;
+        }
+      }
+
+      // Holding Left, Right, h, or l keeps walking. A one-shot such as w or 1-4
+      // still runs once.
+      if (
+        event.repeat
+        && command
+        && command !== "move-down"
+        && command !== "move-up"
+        && command !== "previous-category"
+        && command !== "next-category"
+        && command !== "previous-venue-tab"
+        && command !== "next-venue-tab"
+      ) {
         event.stopPropagation?.();
         event.preventDefault?.();
         return;
@@ -175,33 +279,27 @@ export function usePredictionControllerKeyboard({
         return;
       }
 
-      if (!hideTabs && command === "previous-venue-tab") {
+      if (!hideTabs && (command === "previous-venue-tab" || command === "next-venue-tab")) {
         event.stopPropagation?.();
         event.preventDefault?.();
-        setVenue(
-          getAdjacentPredictionVenueScope(effectiveVenueScope, "previous"),
+        const nextVenue = getAdjacentPredictionVenueScope(
+          venueRef.current,
+          command === "next-venue-tab" ? "next" : "previous",
         );
+        venueRef.current = nextVenue;
+        setVenue(nextVenue);
         return;
       }
 
-      if (!hideTabs && command === "next-venue-tab") {
+      if (command === "previous-category" || command === "next-category") {
         event.stopPropagation?.();
         event.preventDefault?.();
-        setVenue(getAdjacentPredictionVenueScope(effectiveVenueScope, "next"));
-        return;
-      }
-
-      if (command === "previous-category") {
-        event.stopPropagation?.();
-        event.preventDefault?.();
-        selectCategory(getAdjacentPredictionCategoryId(categoryId, "previous"));
-        return;
-      }
-
-      if (command === "next-category") {
-        event.stopPropagation?.();
-        event.preventDefault?.();
-        selectCategory(getAdjacentPredictionCategoryId(categoryId, "next"));
+        const nextCategory = getAdjacentPredictionCategoryId(
+          categoryRef.current,
+          command === "next-category" ? "next" : "previous",
+        );
+        categoryRef.current = nextCategory;
+        selectCategory(nextCategory);
         return;
       }
 
@@ -229,15 +327,19 @@ export function usePredictionControllerKeyboard({
       }
     },
     [
-      blurSearch,
-      categoryId,
+      browseRef,
+      categoryRef,
       cycleDetailOutcome,
+      cycleViewArrows,
       detailOpen,
       detailTab,
-      effectiveVenueScope,
+      focusQueryTarget,
       focusSearch,
       focused,
       hideTabs,
+      moveQueryTarget,
+      openVenueMenu,
+      queryTargetRef,
       scrollDetailBy,
       searchFocused,
       selectBrowseTab,
@@ -246,6 +348,7 @@ export function usePredictionControllerKeyboard({
       setVenue,
       sortedOutcomeMarkets.length,
       toggleWatchlist,
+      venueRef,
     ],
   );
 

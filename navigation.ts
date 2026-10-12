@@ -66,6 +66,17 @@ export function parsePredictionSearchShortcut(query: string): {
   return { venueScope: "all", searchQuery: trimmed };
 }
 
+export function getAdjacentPredictionBrowseTab(
+  current: PredictionBrowseTab,
+  direction: "previous" | "next",
+): PredictionBrowseTab {
+  const index = BROWSE_TABS.findIndex((tab) => tab.value === current);
+  const safeIndex = index >= 0 ? index : 0;
+  const offset = direction === "previous" ? -1 : 1;
+  const nextIndex = (safeIndex + offset + BROWSE_TABS.length) % BROWSE_TABS.length;
+  return BROWSE_TABS[nextIndex]?.value ?? current;
+}
+
 export function getAdjacentPredictionVenueScope(
   current: PredictionVenueScope,
   direction: "previous" | "next",

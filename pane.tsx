@@ -37,7 +37,8 @@ const CATEGORY_TABS = PREDICTION_CATEGORY_OPTIONS.map((category) => ({
   label: category.label,
   value: category.id,
 }));
-// 1-4 pick the view from the keyboard; the hint says so beside each label.
+// 1-4 jump the view from anywhere in the list. Tab walks search, Venue, then
+// this view; Left and Right change the control that has the keyboard.
 const BROWSE_VIEW_OPTIONS = BROWSE_TABS.map((tab, index) => ({
   label: tab.label,
   value: tab.value,
@@ -200,6 +201,10 @@ export function PredictionMarketsPane({ focused, width, height }: PaneProps) {
 
   // The category strip only belongs to the browse list; the detail view has its own tabs.
   const showCategoryTabs = CATEGORY_TABS.length > 1 && !controller.detailOpen;
+  // Categories keep h, l, and the arrows while the list has the keyboard.
+  // The strip does not bind those keys itself: Venue and the view borrow the
+  // arrows, and a second binding would step twice.
+  const categoryStripFocused = focused && !controller.detailOpen && controller.queryTarget == null;
   const selectCategory = (value: string) =>
     controller.actions.selectCategory(value as PredictionCategoryId);
   const tabsInHeader = usePaneHeaderTabs(
@@ -208,6 +213,7 @@ export function PredictionMarketsPane({ focused, width, height }: PaneProps) {
           tabs: CATEGORY_TABS,
           activeValue: controller.categoryId,
           onSelect: selectCategory,
+          focused: categoryStripFocused,
           keyboardNavigation: false,
         }
       : null,
@@ -223,6 +229,8 @@ export function PredictionMarketsPane({ focused, width, height }: PaneProps) {
             onSelect={selectCategory}
             compact
             variant="bare"
+            focused={categoryStripFocused}
+            keyboardNavigation={false}
           />
         </Box>
       ) : null}
@@ -251,6 +259,7 @@ export function PredictionMarketsPane({ focused, width, height }: PaneProps) {
                 defaultValue: "all",
                 options: VENUE_OPTIONS,
                 onChange: (value: PredictionVenueScope) => controller.actions.setVenue(value),
+                controlRef: controller.venueControlRef,
               }]
         }
         view={{
@@ -259,6 +268,8 @@ export function PredictionMarketsPane({ focused, width, height }: PaneProps) {
             ? BROWSE_VIEW_OPTIONS
             : BROWSE_VIEW_OPTIONS_UNKEYED,
           onChange: (value: PredictionBrowseTab) => controller.actions.selectBrowseTab(value),
+          focused: controller.queryTarget === "view",
+          shortcutScope: "prediction-markets-view",
         }}
       />
     </>
@@ -382,6 +393,7 @@ export function PredictionMarketsPane({ focused, width, height }: PaneProps) {
         onChange: (key, _row, _index, reason) =>
           controller.actions.setBrowseSelection(key, {
             debounceDetail: reason === "keyboard",
+            pointer: reason === "pointer",
           }),
       }}
       onActivate={(row) =>

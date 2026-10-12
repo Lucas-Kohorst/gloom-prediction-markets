@@ -7,7 +7,12 @@ import {
   MemoryPersistence,
 } from "./test-helpers";
 
-import { resolvePredictionKeyboardCommand } from "./keyboard";
+import {
+  adjacentPredictionQueryTarget,
+  predictionArrowDirection,
+  predictionTabDirection,
+  resolvePredictionKeyboardCommand,
+} from "./keyboard";
 import {
   buildPredictionListRows,
   flattenPredictionListRows,
@@ -467,6 +472,18 @@ describe("prediction markets plugin registration and services", () => {
         shift: true,
       }),
     ).toBe("next-venue-tab");
+    expect(predictionArrowDirection({ name: "right", sequence: "\u001b[C" })).toBe("next");
+    expect(predictionArrowDirection({ name: "l", sequence: "l" })).toBeNull();
+    expect(predictionArrowDirection({ name: "right", shift: true })).toBeNull();
+    expect(predictionTabDirection({ name: "tab", sequence: "\t" })).toBe(1);
+    expect(predictionTabDirection({ name: "tab", shift: true })).toBe(-1);
+    expect(predictionTabDirection({ name: "tab", ctrl: true })).toBeNull();
+    expect(adjacentPredictionQueryTarget(null, 1, false)).toBe("search");
+    expect(adjacentPredictionQueryTarget("search", 1, false)).toBe("venue");
+    expect(adjacentPredictionQueryTarget("venue", 1, false)).toBe("view");
+    expect(adjacentPredictionQueryTarget("view", 1, false)).toBeNull();
+    expect(adjacentPredictionQueryTarget("search", -1, false)).toBeNull();
+    expect(adjacentPredictionQueryTarget("search", 1, true)).toBe("view");
   });
 
   test("filters closed Polymarket child markets from the catalog", async () => {

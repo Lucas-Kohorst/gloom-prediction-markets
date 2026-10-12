@@ -346,6 +346,54 @@ describe("prediction markets pane interactions", () => {
     expect(searchQuery()).toBe("x");
   });
 
+  test("walks categories, venue, and the view from the keyboard", async () => {
+    installPredictionMarketMocks();
+    testSetup = await testRender(<Harness />, { width: 120, height: 34 });
+    await flushFrames(testSetup);
+
+    const slice = () =>
+      harnessStateRef.current?.paneState[TEST_PANE_ID]?.pluginState?.[
+        "prediction-markets"
+      ] as { categoryId?: string; venueScope?: string; browseTab?: string } | undefined;
+
+    await emitKeypress(testSetup, { name: "right", sequence: "\u001b[C" });
+    await flushFrames(testSetup);
+    expect(slice()?.categoryId).toBe("politics");
+
+    await emitKeypress(testSetup, { name: "right", sequence: "\u001b[C", repeated: true });
+    await flushFrames(testSetup);
+    expect(slice()?.categoryId).toBe("world");
+
+    await emitKeypress(testSetup, { name: "tab", sequence: "\t" });
+    await flushFrames(testSetup);
+    await emitKeypress(testSetup, { name: "tab", sequence: "\t" });
+    await flushFrames(testSetup);
+    await emitKeypress(testSetup, { name: "right", sequence: "\u001b[C" });
+    await flushFrames(testSetup);
+    expect(slice()?.venueScope).toBe("polymarket");
+    expect(slice()?.categoryId).toBe("world");
+
+    await emitKeypress(testSetup, { name: "tab", sequence: "\t" });
+    await flushFrames(testSetup);
+    await emitKeypress(testSetup, { name: "right", sequence: "\u001b[C" });
+    await flushFrames(testSetup);
+    expect(slice()?.browseTab).toBe("ending");
+    expect(slice()?.categoryId).toBe("world");
+
+    await emitKeypress(testSetup, { name: "l", sequence: "l" });
+    await flushFrames(testSetup);
+    expect(slice()?.categoryId).toBe("macro");
+    expect(slice()?.browseTab).toBe("ending");
+
+    await emitKeypress(testSetup, { name: "escape", sequence: "\u001b" });
+    await flushFrames(testSetup);
+    await emitKeypress(testSetup, { name: "right", sequence: "\u001b[C" });
+    await flushFrames(testSetup);
+    expect(slice()?.categoryId).toBe("crypto");
+    expect(slice()?.browseTab).toBe("ending");
+    expect(slice()?.venueScope).toBe("polymarket");
+  });
+
   test("navigates the book and trades tables with arrow keys", async () => {
     installPredictionMarketMocks();
 

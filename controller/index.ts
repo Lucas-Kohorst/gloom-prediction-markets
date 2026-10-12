@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { SelectControl } from "gloomberb/components";
 import { type InputRenderable, type ScrollBoxRenderable } from "gloomberb/ui";
 import {
   useDebouncedPluginPaneState,
@@ -11,6 +12,7 @@ import {
 import { usePredictionMarketsDataState } from "./data";
 import { usePredictionControllerEffects } from "./effects";
 import { usePredictionControllerKeyboard } from "./keyboard";
+import type { PredictionQueryTarget } from "../keyboard";
 import { getDefaultPredictionSort, getNextPredictionSort } from "../metrics";
 import {
   resolvePredictionListActivation,
@@ -126,6 +128,23 @@ export function usePredictionMarketsController({
     });
   }, [setExpandedGroupList]);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [queryTarget, setQueryTarget] = useState<PredictionQueryTarget | null>(null);
+  const queryTargetRef = useRef<PredictionQueryTarget | null>(null);
+  const venueControlRef = useRef<SelectControl | null>(null);
+  const focusQueryTarget = useCallback((target: PredictionQueryTarget | null) => {
+    queryTargetRef.current = target;
+    setQueryTarget(target);
+    setSearchFocused(target === "search");
+  }, []);
+  const clearQueryTarget = useCallback(() => {
+    focusQueryTarget(null);
+  }, [focusQueryTarget]);
+  // Changing venue, category, or view while the field is focused leaves the
+  // field. Landing on Venue or the view keeps that control's keys.
+  const leaveSearchField = useCallback(() => {
+    setSearchFocused(false);
+    if (queryTargetRef.current === "search") focusQueryTarget(null);
+  }, [focusQueryTarget]);
   const [initialParamsApplied, setInitialParamsApplied] = useState(false);
   const appViewport = useViewport();
   useInputCapture(focused && searchFocused);
@@ -213,12 +232,16 @@ export function usePredictionMarketsController({
   }, [defaultSortPreference, setSortPreference]);
 
   const focusSearch = useCallback(() => {
-    setSearchFocused(true);
-  }, []);
+    focusQueryTarget("search");
+  }, [focusQueryTarget]);
 
   const blurSearch = useCallback(() => {
-    setSearchFocused(false);
-  }, []);
+    clearQueryTarget();
+  }, [clearQueryTarget]);
+
+  useEffect(() => {
+    if (!focused) clearQueryTarget();
+  }, [clearQueryTarget, focused]);
 
   const toggleWatchlist = useCallback(
     (row: PredictionListRow) => {
@@ -243,8 +266,8 @@ export function usePredictionMarketsController({
   );
 
   const setBrowseSelection = useCallback(
-    (rowKey: string, options?: { debounceDetail?: boolean }) => {
-      setSearchFocused(false);
+    (rowKey: string, options?: { debounceDetail?: boolean; pointer?: boolean }) => {
+      if (options?.pointer) clearQueryTarget();
       data.actions.setNextDetailLoadDelay(
         options?.debounceDetail ? KEYBOARD_DETAIL_LOAD_DELAY_MS : 0,
       );
@@ -252,14 +275,14 @@ export function usePredictionMarketsController({
         immediate: !options?.debounceDetail || selectedRowKey == null,
       });
     },
-    [data.actions, selectedRowKey, setSelectedRowKey],
+    [clearQueryTarget, data.actions, selectedRowKey, setSelectedRowKey],
   );
 
   const openSelectedRow = useCallback(
     (rowKey: string) => {
       const row = data.visibleRows.find((candidate) => candidate.key === rowKey);
       if (!row) return;
-      setSearchFocused(false);
+      clearQueryTarget();
       if (resolvePredictionListActivation(row) === "toggle-group") {
         setExpandedGroupKeys((current) => togglePredictionGroupExpanded(current, row.key));
         setSelectedRowKey(row.key, { immediate: true });
@@ -270,12 +293,12 @@ export function usePredictionMarketsController({
       setSelectedDetailMarketKey(row.focusMarketKey, { immediate: true });
       setDetailOpen(true);
     },
-    [data.actions, data.visibleRows, setSelectedDetailMarketKey, setSelectedRowKey],
+    [clearQueryTarget, data.actions, data.visibleRows, setSelectedDetailMarketKey, setSelectedRowKey],
   );
 
   const selectMarket = useCallback(
     (marketKey: string) => {
-      setSearchFocused(false);
+      clearQueryTarget();
       data.actions.setNextDetailLoadDelay(0);
       const childRow = data.visibleRows.find(
         (candidate) => candidate.kind === "market" && candidate.key === marketKey,
@@ -303,6 +326,7 @@ export function usePredictionMarketsController({
     },
     [
       data.actions,
+      clearQueryTarget,
       data.detail,
       data.visibleRows,
       detailOpen,
@@ -314,43 +338,47 @@ export function usePredictionMarketsController({
 
   const closeDetail = useCallback(() => {
     setDetailOpen(false);
-    setSearchFocused(false);
-  }, []);
+    clearQueryTarget();
+  }, [clearQueryTarget]);
 
   const setVenue = useCallback(
     (nextVenueScope: string) => {
       const typed = nextVenueScope as PredictionVenueScope;
-      setSearchFocused(false);
+      leaveSearchField();
       setVenueScope(typed);
       setLastVenueScope(typed);
     },
-    [setLastVenueScope, setVenueScope],
+    [leaveSearchField, setLastVenueScope, setVenueScope],
   );
 
   const selectBrowseTab = useCallback(
     (nextBrowseTab: PredictionBrowseTab) => {
-      setSearchFocused(false);
+      leaveSearchField();
       setBrowseTab(nextBrowseTab);
       setSortPreference(getDefaultPredictionSort(nextBrowseTab));
     },
-    [setBrowseTab, setSortPreference],
+    [leaveSearchField, setBrowseTab, setSortPreference],
   );
 
   const selectCategory = useCallback(
     (nextCategoryId: PredictionCategoryId) => {
-      setSearchFocused(false);
+      leaveSearchField();
       setCategoryId(nextCategoryId);
     },
-    [setCategoryId],
+    [leaveSearchField, setCategoryId],
   );
 
   const handleSortHeaderClick = useCallback(
     (columnId: string) => {
-      setSearchFocused(false);
+      clearQueryTarget();
       setSortPreference((current) => getNextPredictionSort(current, columnId));
     },
-    [setSortPreference],
+    [clearQueryTarget, setSortPreference],
   );
+
+  const openVenueMenu = useCallback(() => {
+    venueControlRef.current?.open();
+  }, []);
 
   usePredictionControllerKeyboard({
     categoryId,
@@ -364,8 +392,12 @@ export function usePredictionMarketsController({
     selectedRow: data.selectedRow,
     selectedSummaryKey: data.selectedSummaryKey,
     sortedOutcomeMarkets: data.sortedOutcomeMarkets,
+    browseTab,
+    queryTargetRef,
     blurSearch,
+    focusQueryTarget,
     focusSearch,
+    openVenueMenu,
     selectBrowseTab,
     selectCategory,
     selectMarket,
@@ -396,6 +428,8 @@ export function usePredictionMarketsController({
     lastRefreshAt: data.lastRefreshAt,
     scrollRef,
     searchFocused,
+    queryTarget,
+    venueControlRef,
     searchInputRef,
     searchLoading,
     searchQuery,
