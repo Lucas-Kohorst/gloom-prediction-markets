@@ -23,6 +23,7 @@ interface PredictionKeyboardEvent {
   alt?: boolean;
   option?: boolean;
   shift?: boolean;
+  repeat?: boolean;
   defaultPrevented?: boolean;
   propagationStopped?: boolean;
   preventDefault?: () => void;
@@ -73,6 +74,13 @@ export function usePredictionControllerKeyboard({
   const handleSearchNavigation = useCallback(
     (event: PredictionKeyboardEvent) => {
       if (!focused || !searchFocused) return;
+      if (event.repeat) {
+        if (isPlainArrowDown(event) || resolvePredictionKeyboardCommand(event) === "escape") {
+          event.stopPropagation?.();
+          event.preventDefault?.();
+        }
+        return;
+      }
 
       if (isPlainArrowDown(event)) {
         stopSearchFocusNavigation(event);
@@ -151,6 +159,12 @@ export function usePredictionControllerKeyboard({
           event.preventDefault?.();
           scrollDetailBy(command === "move-down" ? 1 : -1);
         }
+        return;
+      }
+
+      if (event.repeat && command && command !== "move-down" && command !== "move-up") {
+        event.stopPropagation?.();
+        event.preventDefault?.();
         return;
       }
 

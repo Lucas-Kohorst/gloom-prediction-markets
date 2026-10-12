@@ -40,8 +40,15 @@ export function resetPredictionMarketsPersistence(): void {
   predictionMarketsPersistence = null;
 }
 
-export async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const response = await PREDICTION_FETCH.fetch(url, { signal });
+export async function fetchJson<T>(
+  url: string,
+  signal?: AbortSignal,
+  init?: RequestInit,
+): Promise<T> {
+  const response = await PREDICTION_FETCH.fetch(url, {
+    ...init,
+    signal: signal ?? init?.signal,
+  });
   if (!response.ok) {
     throw new Error(`Request failed (${response.status}) for ${url}`);
   }

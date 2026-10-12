@@ -3,14 +3,17 @@ import type {
   PredictionDetailTab,
   PredictionVenueScope,
 } from "./types";
+import { PREDICTION_VENUE_LABELS, PREDICTION_VENUE_ORDER } from "./venues";
 
 export const VENUE_TABS: ReadonlyArray<{
   label: string;
   value: PredictionVenueScope;
 }> = [
   { label: "All venues", value: "all" },
-  { label: "Polymarket", value: "polymarket" },
-  { label: "Kalshi", value: "kalshi" },
+  ...PREDICTION_VENUE_ORDER.map((venue) => ({
+    label: PREDICTION_VENUE_LABELS[venue],
+    value: venue,
+  })),
 ];
 
 export const BROWSE_TABS: ReadonlyArray<{
@@ -36,8 +39,8 @@ export const DETAIL_TABS: ReadonlyArray<{
 export function parsePredictionVenueScope(
   value: string | undefined,
 ): PredictionVenueScope | null {
-  if (value === "all" || value === "polymarket" || value === "kalshi") {
-    return value;
+  if (value && (value === "all" || value in PREDICTION_VENUE_LABELS)) {
+    return value as PredictionVenueScope;
   }
   return null;
 }

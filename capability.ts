@@ -6,12 +6,18 @@ import {
   loadKalshiHistory,
   resolveKalshiChartSummary,
 } from "./services/kalshi/adapter";
+import { loadCryptoComCatalog } from "./services/crypto-com/adapter";
+import { loadGeminiCatalog } from "./services/gemini/adapter";
+import { loadLimitlessCatalog } from "./services/limitless/adapter";
 import { loadPolymarketCatalog } from "./services/polymarket/adapter";
+import { loadPascalCatalog } from "./services/pascal/adapter";
+import { loadPolymarketUsCatalog } from "./services/polymarket-us/adapter";
 import {
   loadPolymarketHistory,
   resolvePolymarketChartSummary,
 } from "./services/polymarket/detail";
 import type { PredictionHistoryPoint, PredictionHistoryRange, PredictionMarketSummary, PredictionVenue } from "./types";
+import { PREDICTION_VENUE_LABELS } from "./venues";
 
 export const PREDICTION_CHART_SERIES_CAPABILITY_ID = "prediction-markets.series";
 const predictionSeriesLog = debugLog.createLogger("prediction-markets.series");
@@ -23,6 +29,7 @@ interface PredictionSeriesIdentity {
 }
 
 export function predictionSeriesId(summary: PredictionMarketSummary): string | null {
+  if (summary.venue !== "kalshi" && summary.venue !== "polymarket") return null;
   const eventId = summary.venue === "kalshi" ? summary.eventTicker : summary.eventId;
   if (!eventId?.trim() || !summary.marketId.trim()) return null;
   const id = `${summary.venue}/${encodeURIComponent(eventId)}/${encodeURIComponent(summary.marketId)}`;
@@ -84,8 +91,8 @@ function catalogItem(summary: PredictionMarketSummary): ChartSeriesCatalogItem |
   return {
     seriesId,
     label: summary.title.slice(0, 160),
-    description: `${summary.venue === "kalshi" ? "Kalshi" : "Polymarket"} · YES probability`,
-    detail: summary.venue === "kalshi" ? "Kalshi" : "Polymarket",
+    description: `${PREDICTION_VENUE_LABELS[summary.venue]} · YES probability`,
+    detail: PREDICTION_VENUE_LABELS[summary.venue],
     style: "area",
   };
 }
@@ -98,6 +105,11 @@ async function catalog(
   const providers = [
     { id: "polymarket", load: () => loadPolymarketCatalog(query, "all", { limit, signal }) },
     { id: "kalshi", load: () => loadKalshiCatalog(query, "all", { limit, signal }) },
+    { id: "gemini", load: () => loadGeminiCatalog(query, "all", { signal }) },
+    { id: "limitless", load: () => loadLimitlessCatalog(query, "all", { signal }) },
+    { id: "crypto-com", load: () => loadCryptoComCatalog(query, "all", { signal }) },
+    { id: "polymarket-us", load: () => loadPolymarketUsCatalog(query, "all", { signal }) },
+    { id: "pascal", load: () => loadPascalCatalog(query, "all", { signal }) },
   ] as const;
   const results = await Promise.allSettled(providers.map((provider) => provider.load()));
   if (signal?.aborted) throw signal.reason ?? new DOMException("Aborted", "AbortError");

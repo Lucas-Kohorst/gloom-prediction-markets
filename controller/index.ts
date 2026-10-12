@@ -13,6 +13,10 @@ import { usePredictionControllerEffects } from "./effects";
 import { usePredictionControllerKeyboard } from "./keyboard";
 import { getDefaultPredictionSort, getNextPredictionSort } from "../metrics";
 import {
+  resolvePredictionListActivation,
+  togglePredictionGroupExpanded,
+} from "../rows";
+import {
   getPredictionMarketsPaneSettings,
   resolvePredictionColumns,
 } from "../settings";
@@ -22,6 +26,7 @@ import type {
   PredictionDetailTab,
   PredictionHistoryRange,
   PredictionListRow,
+  PredictionMarketSummary,
   PredictionSortPreference,
   PredictionVenueScope,
 } from "../types";
@@ -44,6 +49,10 @@ export function usePredictionMarketsController({
   const [watchlist, setWatchlist] = usePluginState<string[]>(
     "watchlist:v1",
     [],
+  );
+  const [watchlistMarkets, setWatchlistMarkets] = usePluginState<Record<string, PredictionMarketSummary>>(
+    "watchlistMarkets:v1",
+    {},
   );
   const [lastVenueScope, setLastVenueScope] =
     usePluginState<PredictionVenueScope>("lastVenueScope:v1", "all");
@@ -96,6 +105,26 @@ export function usePredictionMarketsController({
       defaultSortPreference,
     );
   const [detailOpen, setDetailOpen] = useState(false);
+  const [expandedGroupList, setExpandedGroupList] = usePluginPaneState<string[]>(
+    "expandedGroupKeys",
+    [],
+  );
+  const expandedGroupKeys = useMemo(
+    () => new Set(expandedGroupList),
+    [expandedGroupList],
+  );
+  const setExpandedGroupKeys = useCallback((
+    updater: Set<string> | ((current: Set<string>) => Set<string>),
+  ) => {
+    setExpandedGroupList((current) => {
+      const next = typeof updater === "function" ? updater(new Set(current)) : updater;
+      const keys = [...next];
+      if (keys.length === current.length && keys.every((key, index) => key === current[index])) {
+        return current;
+      }
+      return keys;
+    });
+  }, [setExpandedGroupList]);
   const [searchFocused, setSearchFocused] = useState(false);
   const [initialParamsApplied, setInitialParamsApplied] = useState(false);
   const appViewport = useViewport();
@@ -126,6 +155,7 @@ export function usePredictionMarketsController({
     detailOpen,
     effectiveVenueScope,
     focused,
+    expandedGroupKeys,
     historyRange,
     includeKalshi,
     includePolymarket,
@@ -133,6 +163,7 @@ export function usePredictionMarketsController({
     selectedDetailMarketKey,
     selectedRowKey,
     sortPreference,
+    watchlistMarkets,
     watchlistSet,
   });
 
@@ -140,7 +171,7 @@ export function usePredictionMarketsController({
     appViewportHeight: appViewport.height,
     browseTab,
     categoryId,
-    debouncedSearchQuery: data.debouncedSearchQuery,
+    debouncedSearchQuery: searchQuery,
     detailOpen,
     effectiveVenueScope,
     headerScrollRef,
@@ -164,7 +195,12 @@ export function usePredictionMarketsController({
     setSelectedDetailMarketKey,
     setSelectedRowKey,
     setVenueScope,
-    visibleRowsLength: data.visibleRows.length,
+    visibleRows: data.visibleRows,
+    catalogLoadCount: data.catalogLoadCount,
+    detailSiblings: data.detail?.siblings?.length
+      ? data.detail.siblings
+      : data.knownDetailSiblings,
+    searchPending: data.searchInFlight || searchQuery.trim() !== data.debouncedSearchQuery.trim(),
   });
 
   useEffect(() => {
@@ -187,17 +223,23 @@ export function usePredictionMarketsController({
   const toggleWatchlist = useCallback(
     (row: PredictionListRow) => {
       const rowMarketKeys = [...new Set(row.watchMarketKeys)];
+      const watched = watchlistSet;
+      const allWatched = rowMarketKeys.every((marketKey) => watched.has(marketKey));
       setWatchlist((current) => {
-        const allWatched = rowMarketKeys.every((marketKey) =>
-          current.includes(marketKey),
-        );
-        if (allWatched) {
-          return current.filter((entry) => !rowMarketKeys.includes(entry));
-        }
+        if (allWatched) return current.filter((entry) => !rowMarketKeys.includes(entry));
         return [...new Set([...current, ...rowMarketKeys])];
       });
+      setWatchlistMarkets((current) => {
+        const next = { ...current };
+        if (allWatched) {
+          for (const marketKey of rowMarketKeys) delete next[marketKey];
+          return next;
+        }
+        for (const market of row.markets) next[market.key] = market;
+        return next;
+      });
     },
-    [setWatchlist],
+    [setWatchlist, setWatchlistMarkets, watchlistSet],
   );
 
   const setBrowseSelection = useCallback(
@@ -218,6 +260,11 @@ export function usePredictionMarketsController({
       const row = data.visibleRows.find((candidate) => candidate.key === rowKey);
       if (!row) return;
       setSearchFocused(false);
+      if (resolvePredictionListActivation(row) === "toggle-group") {
+        setExpandedGroupKeys((current) => togglePredictionGroupExpanded(current, row.key));
+        setSelectedRowKey(row.key, { immediate: true });
+        return;
+      }
       data.actions.setNextDetailLoadDelay(0);
       setSelectedRowKey(row.key, { immediate: true });
       setSelectedDetailMarketKey(row.focusMarketKey, { immediate: true });
@@ -230,22 +277,35 @@ export function usePredictionMarketsController({
     (marketKey: string) => {
       setSearchFocused(false);
       data.actions.setNextDetailLoadDelay(0);
-      const row = data.visibleRows.find((candidate) =>
+      const childRow = data.visibleRows.find(
+        (candidate) => candidate.kind === "market" && candidate.key === marketKey,
+      );
+      const row = childRow ?? data.visibleRows.find((candidate) =>
         candidate.markets.some((market) => market.key === marketKey),
       );
-      if (!row) {
-        setDetailOpen(false);
-        setSelectedRowKey(null);
-        setSelectedDetailMarketKey(null);
+      if (row) {
+        setSelectedRowKey(row.key, { immediate: true });
+        setSelectedDetailMarketKey(marketKey, { immediate: true });
+        setDetailOpen(true);
         return;
       }
-      setSelectedRowKey(row.key, { immediate: true });
-      setSelectedDetailMarketKey(marketKey, { immediate: true });
-      setDetailOpen(true);
+      const sibling = detailOpen
+        ? data.detail?.siblings.find((candidate) => candidate.key === marketKey)
+        : undefined;
+      if (detailOpen && sibling) {
+        setSelectedDetailMarketKey(marketKey, { immediate: true });
+        setDetailOpen(true);
+        return;
+      }
+      setDetailOpen(false);
+      setSelectedRowKey(null);
+      setSelectedDetailMarketKey(null);
     },
     [
       data.actions,
+      data.detail,
       data.visibleRows,
+      detailOpen,
       setDetailOpen,
       setSelectedDetailMarketKey,
       setSelectedRowKey,
@@ -271,8 +331,9 @@ export function usePredictionMarketsController({
     (nextBrowseTab: PredictionBrowseTab) => {
       setSearchFocused(false);
       setBrowseTab(nextBrowseTab);
+      setSortPreference(getDefaultPredictionSort(nextBrowseTab));
     },
-    [setBrowseTab],
+    [setBrowseTab, setSortPreference],
   );
 
   const selectCategory = useCallback(
@@ -312,9 +373,8 @@ export function usePredictionMarketsController({
     toggleWatchlist,
   });
 
-  const searchPending = searchQuery.trim() !== data.debouncedSearchQuery.trim();
-  const searchLoading =
-    searchQuery.trim().length > 0 && (searchPending || data.catalogLoadCount > 0);
+  const searchLoading = searchQuery.trim().length > 0 && data.searchInFlight;
+  const searchScanNote = searchQuery.trim().length > 0 ? data.searchScanNote : null;
 
   return {
     paneSettings,
@@ -339,12 +399,15 @@ export function usePredictionMarketsController({
     searchInputRef,
     searchLoading,
     searchQuery,
+    searchScanNote,
     selectedRow: data.selectedRow,
+    selectedEventMarkets: data.selectedEventMarkets,
     selectedIndex: data.selectedIndex,
     selectedSummary: data.selectedSummary,
     sortPreference,
     transportState: data.transportState,
     visibleColumns,
+    flashingMarketKeys: data.flashingMarketKeys,
     visibleRows: data.visibleRows,
     watchlistSet,
     actions: {

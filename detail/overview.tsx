@@ -19,7 +19,10 @@ export function PredictionMarketOverviewView({
   loading,
   onHistoryRangeChange,
   onSelectMarket,
+  outcomeMarkets,
+  selectedMarketKey,
   selectedRow,
+  showChart,
   showRangeTabs,
   summary,
 }: {
@@ -31,7 +34,10 @@ export function PredictionMarketOverviewView({
   loading: boolean;
   onHistoryRangeChange: (range: PredictionHistoryRange) => void;
   onSelectMarket: (marketKey: string) => void;
+  outcomeMarkets?: PredictionMarketSummary[];
+  selectedMarketKey: string;
   selectedRow: PredictionListRow | null;
+  showChart: boolean;
   showRangeTabs: boolean;
   summary: PredictionMarketSummary;
 }) {
@@ -39,24 +45,27 @@ export function PredictionMarketOverviewView({
 
   return (
     <Box flexDirection="column" gap={1}>
-      {selectedRow?.kind === "group" && (
-        <PredictionMarketOutcomesView
-          detailWidth={detailWidth}
-          onSelectMarket={onSelectMarket}
-          selectedMarketKey={summary.key}
-          selectedRow={selectedRow}
+      <PredictionMarketOutcomesView
+        detailWidth={detailWidth}
+        liveMarketKey={summary.key}
+        liveYesPrice={summary.yesPrice}
+        markets={outcomeMarkets}
+        onSelectMarket={onSelectMarket}
+        selectedMarketKey={selectedMarketKey}
+        selectedRow={selectedRow}
+      />
+      {showChart && (
+        <PredictionMarketChart
+          history={detail?.history ?? []}
+          width={detailWidth}
+          height={Math.max(Math.floor(height * 0.36), 10)}
+          loading={loading}
+          focused={focused}
+          range={historyRange}
+          onRangeSelect={onHistoryRangeChange}
+          showRangeTabs={showRangeTabs}
         />
       )}
-      <PredictionMarketChart
-        history={detail?.history ?? []}
-        width={detailWidth}
-        height={Math.max(Math.floor(height * 0.36), 10)}
-        loading={loading}
-        focused={focused}
-        range={historyRange}
-        onRangeSelect={onHistoryRangeChange}
-        showRangeTabs={showRangeTabs}
-      />
       {/* The venue link is the footer's [o]pen, and the range move is in the
           chart header, so the overview ends with the description. */}
       {summary.description && (

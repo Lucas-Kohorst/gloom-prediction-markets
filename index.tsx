@@ -48,6 +48,7 @@ export const predictionMarketsPlugin: GloomPlugin = {
     "clob.polymarket.com",
     "data-api.polymarket.com",
     "api.elections.kalshi.com",
+    "data.pascal.trade",
   ],
 
   cliCommands: [predictionMarketsCliCommand],
@@ -75,7 +76,7 @@ export const predictionMarketsPlugin: GloomPlugin = {
       paneId: PANE_ID,
       label: "Prediction Markets",
       description: "Open a new prediction markets browser pane",
-      keywords: ["prediction", "markets", "polymarket", "kalshi", "events"],
+      keywords: ["prediction", "markets", "polymarket", "kalshi", "pascal", "events"],
       shortcut: { prefix: "PM", argPlaceholder: "query", argKind: "text" },
       headless: predictionMarketsHeadless,
       createInstance: (_context, options) => {

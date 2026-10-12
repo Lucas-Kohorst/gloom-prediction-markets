@@ -18,7 +18,8 @@
     "gamma-api.polymarket.com",
     "clob.polymarket.com",
     "data-api.polymarket.com",
-    "api.elections.kalshi.com"
+    "api.elections.kalshi.com",
+    "data.pascal.trade"
   ],
   "contributes": {
     "panes": [

@@ -4,11 +4,21 @@ import { colors } from "gloomberb/theme";
 export function PredictionMarketRulesView({
   rules,
   detailWidth,
+  loading = false,
+  failed = false,
 }: {
   rules: string[];
   detailWidth: number;
+  loading?: boolean;
+  failed?: boolean;
 }) {
   const textWidth = Math.max(detailWidth, 12);
+  if (loading) {
+    return <Text fg={colors.textDim}>Loading rules.</Text>;
+  }
+  if (failed) {
+    return <Text fg={colors.textDim}>Rules unavailable.</Text>;
+  }
 
   return (
     <Box flexDirection="column" gap={1}>
