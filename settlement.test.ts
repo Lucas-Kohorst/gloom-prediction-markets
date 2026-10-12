@@ -1,109 +1,111 @@
 import { describe, expect, test } from "bun:test";
 import { matchSettlement, type SettlementMatch } from "./settlement";
 
-const cf: SettlementMatch = {
+type ListedMatch = Omit<SettlementMatch, "chart" | "catalog">;
+
+const cf = {
   label: "CF Benchmarks index",
   command: null,
   aside: "The crypto quote is a different print.",
 };
 
-const pyth: SettlementMatch = {
+const pyth = {
   label: "Pyth price at the settle time",
   command: null,
   aside: "The futures last trade is a different print.",
 };
 
-const binance: SettlementMatch = {
+const binance = {
   label: "Binance price",
   command: null,
   aside: "The crypto quote is a different print.",
 };
 
-const cpi: SettlementMatch = {
+const cpi = {
   label: "CPI-U",
   command: "CPI",
   aside: null,
 };
 
-const payrolls: SettlementMatch = {
+const payrolls = {
   label: "Payrolls and unemployment",
   command: "ECST",
   aside: null,
 };
 
-const gdp: SettlementMatch = {
+const gdp = {
   label: "GDP and PCE",
   command: "ECST",
   aside: null,
 };
 
-const recession: SettlementMatch = {
+const recession = {
   label: "NBER recession dates",
   command: null,
   aside: "This is not the GDP print.",
 };
 
-const treasury: SettlementMatch = {
+const treasury = {
   label: "Treasury yield",
   command: "GC",
   aside: null,
 };
 
-const aaa: SettlementMatch = {
+const aaa = {
   label: "AAA regular gasoline",
   command: null,
   aside: "DOE is the EIA weekly series.",
 };
 
-const eia: SettlementMatch = {
+const eia = {
   label: "EIA petroleum",
   command: "DOE",
   aside: null,
 };
 
-const exchange: SettlementMatch = {
+const exchange = {
   label: "Exchange settlement",
   command: "CTM",
   aside: "CTM is the futures settlement, not a 15-minute print.",
 };
 
-const weather: SettlementMatch = {
+const weather = {
   label: "Station temperature",
   command: "WX",
   aside: null,
 };
 
-const fed: SettlementMatch = {
+const fed = {
   label: "Fed funds target",
   command: "WIRP",
   aside: "WIRP is the futures path. The meeting's cut, hold, or hike is the statement.",
 };
 
-const score: SettlementMatch = {
+const score = {
   label: "Final score",
   command: "ODDS",
   aside: null,
 };
 
-const bill: SettlementMatch = {
+const bill = {
   label: "Congress bill",
   command: "BILLS",
   aside: null,
 };
 
-const register: SettlementMatch = {
+const register = {
   label: "Federal Register",
   command: "FR",
   aside: null,
 };
 
-const strait: SettlementMatch = {
+const strait = {
   label: "Strait traffic",
   command: "SHIP",
   aside: null,
 };
 
-const quake: SettlementMatch = {
+const quake = {
   label: "Earthquake",
   command: "QUAKE",
   aside: null,
@@ -112,7 +114,9 @@ const quake: SettlementMatch = {
 const cases: Array<{
   name: string;
   input: Parameters<typeof matchSettlement>[0];
-  match: SettlementMatch | null;
+  match: ListedMatch | null;
+  chart?: string | null;
+  catalog?: string | null;
 }> = [
   { name: "matches a BTC series to CF Benchmarks", input: { seriesTicker: "KXBTC" }, match: cf },
   { name: "matches an ETH series prefix to CF Benchmarks", input: { seriesTicker: "KXETHMAX" }, match: cf },
@@ -144,78 +148,89 @@ const cases: Array<{
     match: pyth,
   },
   { name: "matches binance.com", input: { resolutionSource: "https://www.binance.com/en/price/bitcoin" }, match: binance },
-  { name: "matches KXCPI", input: { seriesTicker: "KXCPI" }, match: cpi },
-  { name: "matches KXCPIYOY-26SEP to CPI", input: { eventTicker: "KXCPIYOY-26SEP" }, match: cpi },
-  { name: "matches a lowercase CPI event suffix", input: { seriesTicker: "kxcpiyoy-26sep" }, match: cpi },
-  { name: "matches KXCPICORE", input: { seriesTicker: "KXCPICORE" }, match: cpi },
-  { name: "matches KXCPICOREYOY", input: { seriesTicker: "KXCPICOREYOY" }, match: cpi },
-  { name: "matches KXECONSTATCPI", input: { seriesTicker: "KXECONSTATCPI" }, match: cpi },
+  { name: "matches KXCPI", input: { seriesTicker: "KXCPI" }, match: cpi, chart: "FRED:CPIAUCSL" },
+  { name: "matches KXCPIYOY-26SEP to CPI", input: { eventTicker: "KXCPIYOY-26SEP" }, match: cpi, chart: "FRED:CPIAUCNS" },
+  { name: "matches a lowercase CPI event suffix", input: { seriesTicker: "kxcpiyoy-26sep" }, match: cpi, chart: "FRED:CPIAUCNS" },
+  { name: "matches KXCPICORE", input: { seriesTicker: "KXCPICORE" }, match: cpi, chart: "FRED:CPILFESL" },
+  { name: "matches KXCPICOREYOY", input: { seriesTicker: "KXCPICOREYOY" }, match: cpi, chart: "FRED:CPILFENS" },
+  { name: "matches KXECONSTATCPI", input: { seriesTicker: "KXECONSTATCPI" }, match: cpi, chart: "FRED:CPIAUCSL" },
   {
     name: "matches bls.gov when the title mentions inflation",
     input: { resolutionSource: "https://www.bls.gov/cpi/", title: "Year-over-year inflation" },
     match: cpi,
+    chart: "FRED:CPIAUCNS",
   },
   {
     name: "matches bls.gov when the title mentions CPI",
     input: { resolutionSource: "https://bls.gov/news", title: "CPI-U rose" },
     match: cpi,
+    chart: "FRED:CPIAUCSL",
   },
   {
     name: "prefers CPI when a BLS title mentions both CPI and unemployment",
     input: { resolutionSource: "https://www.bls.gov/news", title: "CPI and unemployment" },
     match: cpi,
+    chart: "FRED:CPIAUCSL",
   },
-  { name: "matches KXPAYROLLS", input: { seriesTicker: "KXPAYROLLS" }, match: payrolls },
-  { name: "matches KXU3", input: { seriesTicker: "KXU3" }, match: payrolls },
-  { name: "matches KXJOBLESS", input: { eventTicker: "KXJOBLESS-26OCT" }, match: payrolls },
+  { name: "matches KXPAYROLLS", input: { seriesTicker: "KXPAYROLLS" }, match: payrolls, chart: "FRED:PAYEMS" },
+  { name: "matches KXU3", input: { seriesTicker: "KXU3" }, match: payrolls, chart: "FRED:UNRATE" },
+  { name: "matches KXJOBLESS", input: { eventTicker: "KXJOBLESS-26OCT" }, match: payrolls, chart: "FRED:ICSA" },
   {
     name: "matches bls.gov when the title mentions unemployment",
     input: { resolutionSource: "https://www.bls.gov/lau/", title: "Unemployment rate" },
     match: payrolls,
+    chart: "FRED:UNRATE",
   },
   {
     name: "matches dol.gov when the title mentions jobless claims",
     input: { resolutionSource: "https://www.dol.gov/ui/data.pdf", title: "Weekly jobless claims" },
     match: payrolls,
+    chart: "FRED:ICSA",
   },
   {
     name: "matches dol.gov when the title mentions payrolls",
     input: { resolutionSource: "https://dol.gov/news", title: "Nonfarm payrolls" },
     match: payrolls,
+    chart: "FRED:PAYEMS",
   },
-  { name: "matches KXGDP", input: { seriesTicker: "KXGDP" }, match: gdp },
-  { name: "matches KXPCECORE", input: { seriesTicker: "KXPCECORE" }, match: gdp },
+  { name: "matches KXGDP", input: { seriesTicker: "KXGDP" }, match: gdp, chart: "FRED:GDPC1" },
+  { name: "matches KXPCECORE", input: { seriesTicker: "KXPCECORE" }, match: gdp, chart: "FRED:PCEPILFE" },
   {
     name: "matches bea.gov when the title mentions GDP",
     input: { resolutionSource: "https://www.bea.gov/data/gdp", title: "Real GDP growth" },
     match: gdp,
+    chart: "FRED:GDPC1",
   },
   {
     name: "matches bea.gov when the title mentions PCE",
     input: { resolutionSource: "https://bea.gov/data/pce", title: "Core PCE" },
     match: gdp,
+    chart: "FRED:PCEPILFE",
   },
   {
     name: "prefers GDP when a BEA title also mentions a recession",
     input: { resolutionSource: "https://www.bea.gov/gdp", title: "GDP during a recession" },
     match: gdp,
+    chart: "FRED:GDPC1",
   },
   {
     name: "matches a BEA recession title that is not the GDP print",
     input: { resolutionSource: "https://www.bea.gov/news", title: "NBER recession dates" },
     match: recession,
   },
-  { name: "matches a T-note series prefix", input: { seriesTicker: "KXTNOTE10Y" }, match: treasury },
-  { name: "matches a Treasury series prefix", input: { eventTicker: "KXUST2Y-26" }, match: treasury },
+  { name: "matches a T-note series prefix", input: { seriesTicker: "KXTNOTE10Y" }, match: treasury, chart: "UST:10Y" },
+  { name: "matches a Treasury series prefix", input: { eventTicker: "KXUST2Y-26" }, match: treasury, chart: "UST:2Y" },
   {
     name: "matches home.treasury.gov when the title mentions yield",
     input: { resolutionSource: "https://home.treasury.gov/data", title: "10-year yield" },
     match: treasury,
+    chart: "UST:10Y",
   },
   {
     name: "matches home.treasury.gov when the title mentions treasuries",
     input: { resolutionSource: "https://www.home.treasury.gov/auctions", title: "Treasury auctions" },
     match: treasury,
+    chart: "UST:10Y",
   },
   { name: "matches an AAA gasoline series prefix", input: { seriesTicker: "KXAAAGASW" }, match: aaa },
   {
@@ -235,14 +250,14 @@ const cases: Array<{
     input: { resolutionSource: "https://eia.gov/petroleum/supply", title: "Crude oil" },
     match: eia,
   },
-  { name: "matches KXWTI", input: { seriesTicker: "KXWTI" }, match: exchange },
+  { name: "matches KXWTI", input: { seriesTicker: "KXWTI" }, match: exchange, chart: "FUT:CL" },
   {
     name: "matches theice.com",
     input: { resolutionSource: "https://www.theice.com/products/futures" },
     match: exchange,
   },
   { name: "matches ice.com", input: { resolutionSource: "https://ice.com/energy" }, match: exchange },
-  { name: "matches a high-temperature series prefix", input: { seriesTicker: "KXHIGHNY" }, match: weather },
+  { name: "matches a high-temperature series prefix", input: { seriesTicker: "KXHIGHNY" }, match: weather, chart: "WX:NYC:high", catalog: null },
   { name: "matches a low-temperature series prefix", input: { seriesTicker: "KXLOWT" }, match: weather },
   { name: "matches a rain series prefix", input: { seriesTicker: "KXRAIN" }, match: weather },
   { name: "matches a temperature series prefix", input: { eventTicker: "KXTEMP-26SEP" }, match: weather },
@@ -258,24 +273,27 @@ const cases: Array<{
     input: { resolutionSource: "https://www.forecast.weather.gov/MapClick.php" },
     match: weather,
   },
-  { name: "matches KXFEDDECISION", input: { seriesTicker: "KXFEDDECISION" }, match: fed },
-  { name: "matches KXFED", input: { seriesTicker: "KXFED" }, match: fed },
-  { name: "matches KXFED from an event suffix", input: { eventTicker: "KXFED-27APR" }, match: fed },
-  { name: "matches KXRATECUT", input: { seriesTicker: "KXRATECUT" }, match: fed },
+  { name: "matches KXFEDDECISION", input: { seriesTicker: "KXFEDDECISION" }, match: fed, chart: "FRED:DFEDTARU" },
+  { name: "matches KXFED", input: { seriesTicker: "KXFED" }, match: fed, chart: "FRED:DFEDTARU" },
+  { name: "matches KXFED from an event suffix", input: { eventTicker: "KXFED-27APR" }, match: fed, chart: "FRED:DFEDTARU" },
+  { name: "matches KXRATECUT", input: { seriesTicker: "KXRATECUT" }, match: fed, chart: "FRED:DFEDTARU" },
   {
     name: "matches federalreserve.gov when the title mentions the Fed",
     input: { resolutionSource: "https://www.federalreserve.gov/monetarypolicy", title: "Fed holds" },
     match: fed,
+    chart: "FRED:DFEDTARU",
   },
   {
     name: "matches federalreserve.gov when the title mentions the FOMC",
     input: { resolutionSource: "https://federalreserve.gov/fomc", title: "FOMC minutes" },
     match: fed,
+    chart: "FRED:DFEDTARU",
   },
   {
     name: "matches federalreserve.gov when the title mentions a rate",
     input: { resolutionSource: "https://www.federalreserve.gov/", title: "Target rate" },
     match: fed,
+    chart: "FRED:DFEDTARU",
   },
   { name: "matches espn.com", input: { resolutionSource: "https://www.espn.com/nfl/game" }, match: score },
   { name: "matches foxsports.com", input: { resolutionSource: "https://www.foxsports.com/nba" }, match: score },
@@ -310,6 +328,12 @@ const cases: Array<{
     name: "matches portwatch.imf.org",
     input: { resolutionSource: "https://portwatch.imf.org/pages/data" },
     match: strait,
+  },
+  {
+    name: "graphs a named strait",
+    input: { resolutionSource: "https://portwatch.imf.org/pages/data", title: "Strait of Hormuz traffic" },
+    match: strait,
+    chart: "GEO:HORMUZ",
   },
   {
     name: "matches earthquake.usgs.gov",
@@ -383,13 +407,24 @@ const cases: Array<{
     name: "uses the series ticker before the event ticker",
     input: { seriesTicker: "KXCPI", eventTicker: "KXWTI15M" },
     match: cpi,
+    chart: "FRED:CPIAUCSL",
   },
 ];
+
+function settled(entry: (typeof cases)[number]): SettlementMatch | null {
+  if (!entry.match) return null;
+  const chart = entry.chart ?? null;
+  return {
+    ...entry.match,
+    chart,
+    catalog: entry.catalog === undefined ? chart : entry.catalog,
+  };
+}
 
 describe("matchSettlement", () => {
   for (const entry of cases) {
     test(entry.name, () => {
-      expect(matchSettlement(entry.input)).toEqual(entry.match);
+      expect(matchSettlement(entry.input)).toEqual(settled(entry));
     });
   }
 });

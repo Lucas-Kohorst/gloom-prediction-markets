@@ -9,17 +9,20 @@ import {
   usePaneHeaderTabs,
   usePaneNoticeFooter,
   usePaneStatusLinkFooter,
+  type PaneHint,
   useTableLoadMore,
   type DataTableKeyEvent,
   type DataTableRootKeyContext,
 } from "gloomberb/components";
 import { createRowValueCache } from "gloomberb/components";
+import { usePluginAppActions } from "gloomberb/react";
 import type { PaneProps } from "gloomberb/types/plugin";
 import { colors } from "gloomberb/theme";
 import { PREDICTION_CATEGORY_OPTIONS } from "./categories";
 import { usePredictionMarketsController } from "./controller";
 import { PredictionMarketDetailPane } from "./detail/pane";
 import { resolvePredictionDetailTitle } from "./detail/shared";
+import { matchSettlement } from "./settlement";
 import { getPredictionColumnValue } from "./metrics";
 import { BROWSE_TABS, VENUE_TABS } from "./navigation";
 import { formatRelativeAge, isPlainArrowUp, stopSearchFocusNavigation } from "gloomberb/utils";
@@ -105,6 +108,7 @@ function predictionCellVersion(
 
 export function PredictionMarketsPane({ focused, width, height }: PaneProps) {
   const controller = usePredictionMarketsController({ focused });
+  const { createPaneFromTemplate } = usePluginAppActions();
   const { nativePaneChrome } = useUiCapabilities();
   const cellCacheRef = useRef(
     createRowValueCache<string, ReturnType<typeof getPredictionColumnValue>>(
@@ -185,10 +189,43 @@ export function PredictionMarketsPane({ focused, width, height }: PaneProps) {
   // cached detail on screen and says so here rather than as current data.
   const detailVisible = controller.detailOpen && !!controller.selectedSummary;
   const detailSummary = controller.detail?.summary ?? controller.selectedSummary;
+  const settlementHints = useMemo((): PaneHint[] => {
+    if (!detailVisible || !detailSummary) return [];
+    const match = matchSettlement({
+      seriesTicker: detailSummary.seriesTicker,
+      eventTicker: detailSummary.eventTicker,
+      title: detailSummary.title,
+      resolutionSource: detailSummary.resolutionSource,
+      category: detailSummary.category,
+    });
+    if (!match) return [];
+    const hints: PaneHint[] = [];
+    if (match.chart) {
+      const chart = match.chart;
+      hints.push({
+        id: "settlement-graph",
+        key: "g",
+        label: "raph",
+        onPress: () => createPaneFromTemplate("chart-composer-pane", { arg: chart }),
+      });
+    }
+    if (match.catalog) {
+      const catalog = match.catalog;
+      hints.push({
+        id: "settlement-table",
+        key: "t",
+        label: "able",
+        onPress: () => createPaneFromTemplate("data-catalog-pane", { arg: catalog }),
+      });
+    }
+    return hints;
+  }, [createPaneFromTemplate, detailSummary, detailVisible]);
+
   usePaneStatusLinkFooter({
     registrationId: "prediction-markets-detail",
     focused: focused && detailVisible,
     url: detailVisible ? detailSummary?.url : null,
+    hints: settlementHints,
     loading: detailVisible && controller.detailLoadCount > 0 && !controller.detail,
     error: detailVisible && controller.detailError
       ? controller.detail

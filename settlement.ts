@@ -2,7 +2,11 @@ export interface SettlementMatch {
   label: string;
   command: string | null;
   aside: string | null;
+  chart: string | null;
+  catalog: string | null;
 }
+
+type SettlementPrint = Pick<SettlementMatch, "chart" | "catalog">;
 
 interface SettlementFacts {
   series: string;
@@ -171,7 +175,95 @@ export function matchSettlement(input: {
   const facts = readFacts(input);
   const hit = RULES.find((rule) => rule.when(facts));
   if (!hit) return null;
-  return { label: hit.label, command: hit.command, aside: hit.aside };
+  const view = catalogPrint(facts, hit.label);
+  return {
+    label: hit.label,
+    command: hit.command,
+    aside: hit.aside,
+    chart: view.chart,
+    catalog: view.catalog,
+  };
+}
+
+const NONE: SettlementPrint = { chart: null, catalog: null };
+
+// Kalshi's high series are not KXHIGH plus the station id. KXHIGHNY is NYC.
+const HIGH_STATION: Record<string, string> = {
+  KXHIGHNY: "NYC",
+  KXHIGHCHI: "MDW",
+  KXHIGHPHIL: "PHL",
+  KXHIGHTDC: "DCA",
+  KXHIGHTBOS: "BOS",
+  KXHIGHTATL: "ATL",
+  KXHIGHTPHX: "PHX",
+  KXHIGHTSEA: "SEA",
+  KXHIGHTSFO: "SFO",
+  KXHIGHTSAN: "SAN",
+  KXHIGHTDAL: "DFW",
+  KXHIGHTLV: "LAS",
+  KXHIGHTSATX: "SAT",
+  KXHIGHTNOLA: "MSY",
+  KXHIGHTMIN: "MSP",
+  KXHIGHTOKC: "OKC",
+  KXHOBBYTEMP: "HOU",
+  KXHIGHDEN: "DEN",
+};
+
+const TENORS = ["30Y", "20Y", "10Y", "7Y", "6M", "5Y", "3Y", "3M", "2Y", "1Y", "1M"] as const;
+
+const STRAITS: Array<readonly [string, string]> = [
+  ["hormuz", "HORMUZ"],
+  ["suez", "SUEZ"],
+  ["panama", "PANAMA"],
+  ["malacca", "MALACCA"],
+  ["bosphorus", "BOSPHORUS"],
+  ["mandeb", "BABELMANDEB"],
+];
+
+function fred(id: string): SettlementPrint {
+  const chart = `FRED:${id}`;
+  return { chart, catalog: chart };
+}
+
+function catalogPrint(facts: SettlementFacts, label: string): SettlementPrint {
+  if (label === "CPI-U") {
+    if (facts.series === "KXCPICOREYOY") return fred("CPILFENS");
+    if (facts.series === "KXCPICORE") return fred("CPILFESL");
+    if (facts.series === "KXCPIYOY" || titleHas(facts.title, ["y/y", "yoy", "year-over-year"])) return fred("CPIAUCNS");
+    return fred("CPIAUCSL");
+  }
+  if (label === "Payrolls and unemployment") {
+    if (facts.series === "KXU3" || titleHas(facts.title, ["unemployment"])) return fred("UNRATE");
+    if (facts.series === "KXJOBLESS" || titleHas(facts.title, ["jobless"])) return fred("ICSA");
+    return fred("PAYEMS");
+  }
+  if (label === "GDP and PCE") {
+    if (facts.series === "KXPCECORE" || (titleHas(facts.title, ["pce"]) && !titleHas(facts.title, ["gdp"]))) {
+      return fred("PCEPILFE");
+    }
+    return fred("GDPC1");
+  }
+  if (label === "Treasury yield") {
+    const tenor = TENORS.find((item) => facts.series.includes(item)) ?? "10Y";
+    const chart = `UST:${tenor}`;
+    return { chart, catalog: chart };
+  }
+  if (label === "Exchange settlement" && (facts.series === "KXWTI" || titleHas(facts.title, ["wti"]))) {
+    return { chart: "FUT:CL", catalog: "FUT:CL" };
+  }
+  if (label === "Fed funds target") return fred("DFEDTARU");
+  if (label === "Station temperature") {
+    const station = HIGH_STATION[facts.series];
+    if (!station) return NONE;
+    return { chart: `WX:${station}:high`, catalog: null };
+  }
+  if (label === "Strait traffic") {
+    const strait = STRAITS.find(([word]) => facts.title.includes(word));
+    if (!strait) return NONE;
+    const chart = `GEO:${strait[1]}`;
+    return { chart, catalog: chart };
+  }
+  return NONE;
 }
 
 function readFacts(input: {
