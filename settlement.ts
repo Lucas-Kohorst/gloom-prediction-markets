@@ -1,0 +1,224 @@
+export interface SettlementMatch {
+  label: string;
+  command: string | null;
+  aside: string | null;
+}
+
+interface SettlementFacts {
+  series: string;
+  host: string;
+  title: string;
+  category: string;
+}
+
+interface SettlementRule {
+  label: string;
+  command: string | null;
+  aside: string | null;
+  when: (facts: SettlementFacts) => boolean;
+}
+
+const RULES: readonly SettlementRule[] = [
+  {
+    label: "CF Benchmarks index",
+    command: null,
+    aside: "The crypto quote is a different print.",
+    when: ({ series, host }) =>
+      startsWith(series, ["KXBTC", "KXETH", "KXSOL", "KXXRP"]) ||
+      host === "cfbenchmarks.com",
+  },
+  {
+    label: "Pyth price at the settle time",
+    command: null,
+    aside: "The futures last trade is a different print.",
+    when: ({ series, host }) => series.endsWith("15M") || host.includes("pyth"),
+  },
+  {
+    label: "Binance price",
+    command: null,
+    aside: "The crypto quote is a different print.",
+    when: ({ host }) => host === "binance.com",
+  },
+  {
+    label: "CPI-U",
+    command: "CPI",
+    aside: null,
+    when: ({ series, host, title }) =>
+      seriesIs(series, ["KXCPI", "KXCPIYOY", "KXCPICORE", "KXCPICOREYOY", "KXECONSTATCPI"]) ||
+      (host === "bls.gov" && titleHas(title, ["cpi", "inflation"])),
+  },
+  {
+    label: "Payrolls and unemployment",
+    command: "ECST",
+    aside: null,
+    when: ({ series, host, title }) =>
+      seriesIs(series, ["KXPAYROLLS", "KXU3", "KXJOBLESS"]) ||
+      ((host === "bls.gov" || host === "dol.gov") &&
+        titleHas(title, ["payroll", "unemployment", "jobless"])),
+  },
+  {
+    label: "GDP and PCE",
+    command: "ECST",
+    aside: null,
+    when: ({ series, host, title }) =>
+      seriesIs(series, ["KXGDP", "KXPCECORE"]) ||
+      (host === "bea.gov" && titleHas(title, ["gdp", "pce"])),
+  },
+  {
+    label: "NBER recession dates",
+    command: null,
+    aside: "This is not the GDP print.",
+    when: ({ host, title }) => host === "bea.gov" && titleHas(title, ["recession"]),
+  },
+  {
+    label: "Treasury yield",
+    command: "GC",
+    aside: null,
+    when: ({ series, host, title }) =>
+      startsWith(series, ["KXTNOTE", "KXUST"]) ||
+      (host === "home.treasury.gov" && titleHas(title, ["yield", "treasury"])),
+  },
+  {
+    label: "AAA regular gasoline",
+    command: null,
+    aside: "DOE is the EIA weekly series.",
+    when: ({ series, host }) =>
+      startsWith(series, ["KXAAAGAS"]) || host === "gasprices.aaa.com",
+  },
+  {
+    label: "EIA petroleum",
+    command: "DOE",
+    aside: null,
+    when: ({ series, host, title }) =>
+      seriesIs(series, ["KXGAS", "KXOIL"]) ||
+      (host === "eia.gov" && titleHas(title, ["gas", "oil"])),
+  },
+  {
+    label: "Exchange settlement",
+    command: "CTM",
+    aside: "CTM is the futures settlement, not a 15-minute print.",
+    when: ({ series, host }) =>
+      series === "KXWTI" || host === "theice.com" || host === "ice.com",
+  },
+  {
+    label: "Station temperature",
+    command: "WX",
+    aside: null,
+    when: ({ series, host }) =>
+      startsWith(series, ["KXHIGH", "KXLOW", "KXRAIN", "KXTEMP"]) ||
+      host === "weather.com" ||
+      host === "weather.gov" ||
+      host === "forecast.weather.gov",
+  },
+  {
+    label: "Fed funds target",
+    command: "WIRP",
+    aside: "WIRP is the futures path. The meeting's cut, hold, or hike is the statement.",
+    when: ({ series, host, title }) =>
+      seriesIs(series, ["KXFEDDECISION", "KXFED", "KXRATECUT"]) ||
+      (host === "federalreserve.gov" && titleHas(title, ["fed", "fomc", "rate"])),
+  },
+  {
+    label: "Final score",
+    command: "ODDS",
+    aside: null,
+    when: ({ host, category }) =>
+      hostIs(host, [
+        "espn.com",
+        "foxsports.com",
+        "nfl.com",
+        "nba.com",
+        "mlb.com",
+        "ncaa.com",
+        "fifa.com",
+        "nhl.com",
+      ]) || category === "Sports",
+  },
+  {
+    label: "Congress bill",
+    command: "BILLS",
+    aside: null,
+    when: ({ host, title }) =>
+      host === "congress.gov" && titleHas(title, ["bill", "h.r.", "act"]),
+  },
+  {
+    label: "Federal Register",
+    command: "FR",
+    aside: null,
+    when: ({ host }) => host === "federalregister.gov",
+  },
+  {
+    label: "Strait traffic",
+    command: "SHIP",
+    aside: null,
+    when: ({ host }) => host === "portwatch.imf.org",
+  },
+  {
+    label: "Earthquake",
+    command: "QUAKE",
+    aside: null,
+    when: ({ host }) => host === "earthquake.usgs.gov",
+  },
+];
+
+export function matchSettlement(input: {
+  seriesTicker?: string | null;
+  eventTicker?: string | null;
+  title?: string | null;
+  resolutionSource?: string | null;
+  category?: string | null;
+}): SettlementMatch | null {
+  const facts = readFacts(input);
+  const hit = RULES.find((rule) => rule.when(facts));
+  if (!hit) return null;
+  return { label: hit.label, command: hit.command, aside: hit.aside };
+}
+
+function readFacts(input: {
+  seriesTicker?: string | null;
+  eventTicker?: string | null;
+  title?: string | null;
+  resolutionSource?: string | null;
+  category?: string | null;
+}): SettlementFacts {
+  return {
+    series: seriesKey(input.seriesTicker, input.eventTicker),
+    host: resolutionHost(input.resolutionSource),
+    title: input.title?.trim().toLowerCase() ?? "",
+    category: input.category?.trim() ?? "",
+  };
+}
+
+function seriesKey(
+  seriesTicker?: string | null,
+  eventTicker?: string | null,
+): string {
+  const preferred = seriesTicker?.trim() || eventTicker?.trim() || "";
+  return preferred.toUpperCase().replace(/-\d.*$/, "");
+}
+
+function resolutionHost(resolutionSource?: string | null): string {
+  const raw = resolutionSource?.trim() ?? "";
+  if (!raw) return "";
+  try {
+    return new URL(raw).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+function seriesIs(series: string, names: readonly string[]): boolean {
+  return names.includes(series);
+}
+
+function startsWith(series: string, prefixes: readonly string[]): boolean {
+  return prefixes.some((prefix) => series.startsWith(prefix));
+}
+
+function hostIs(host: string, names: readonly string[]): boolean {
+  return names.includes(host);
+}
+
+function titleHas(title: string, words: readonly string[]): boolean {
+  return words.some((word) => title.includes(word));
+}

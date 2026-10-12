@@ -1,16 +1,20 @@
 import { Box, Text } from "gloomberb/ui";
 import { colors } from "gloomberb/theme";
+import type { SettlementMatch } from "../settlement";
+import { PredictionSettlementBlock } from "./shared";
 
 export function PredictionMarketRulesView({
   rules,
   detailWidth,
   loading = false,
   failed = false,
+  settlement,
 }: {
   rules: string[];
   detailWidth: number;
   loading?: boolean;
   failed?: boolean;
+  settlement: SettlementMatch | null;
 }) {
   const textWidth = Math.max(detailWidth, 12);
   if (loading) {
@@ -22,6 +26,9 @@ export function PredictionMarketRulesView({
 
   return (
     <Box flexDirection="column" gap={1}>
+      {settlement && (
+        <PredictionSettlementBlock match={settlement} width={textWidth} />
+      )}
       {rules.map((rule, index) => (
         <Box
           key={`${index}:${rule.slice(0, 24)}`}

@@ -2,6 +2,7 @@ import { Box, Text } from "gloomberb/ui";
 import { SectionHeading } from "gloomberb/components";
 import { colors } from "gloomberb/theme";
 import { PredictionMarketChart } from "../chart";
+import type { SettlementMatch } from "../settlement";
 import type {
   PredictionHistoryRange,
   PredictionListRow,
@@ -9,6 +10,7 @@ import type {
   PredictionMarketSummary,
 } from "../types";
 import { PredictionMarketOutcomesView } from "./outcomes";
+import { PredictionSettlementBlock } from "./shared";
 
 export function PredictionMarketOverviewView({
   detail,
@@ -22,6 +24,7 @@ export function PredictionMarketOverviewView({
   outcomeMarkets,
   selectedMarketKey,
   selectedRow,
+  settlement,
   showChart,
   showRangeTabs,
   summary,
@@ -37,6 +40,7 @@ export function PredictionMarketOverviewView({
   outcomeMarkets?: PredictionMarketSummary[];
   selectedMarketKey: string;
   selectedRow: PredictionListRow | null;
+  settlement: SettlementMatch | null;
   showChart: boolean;
   showRangeTabs: boolean;
   summary: PredictionMarketSummary;
@@ -68,6 +72,9 @@ export function PredictionMarketOverviewView({
       )}
       {/* The venue link is the footer's [o]pen, and the range move is in the
           chart header, so the overview ends with the description. */}
+      {settlement && (
+        <PredictionSettlementBlock match={settlement} width={textWidth} />
+      )}
       {summary.description && (
         <Box flexDirection="column" width={textWidth}>
           <SectionHeading title="Description" />

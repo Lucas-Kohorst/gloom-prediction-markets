@@ -29,6 +29,7 @@ import type {
   PredictionMarketDetail,
   PredictionMarketSummary,
 } from "../types";
+import { matchSettlement } from "../settlement";
 import { PredictionMarketBookView } from "./book";
 import { PredictionMarketOverviewView } from "./overview";
 import { PredictionMarketRulesView } from "./rules";
@@ -174,6 +175,13 @@ export function PredictionMarketDetailPane({
 
   const detailWidth = Math.max(width - 2, 24);
   const summaryMetrics = detail?.summary ?? selectedSummary;
+  const settlement = matchSettlement({
+    seriesTicker: summaryMetrics.seriesTicker,
+    eventTicker: summaryMetrics.eventTicker,
+    title: summaryMetrics.title,
+    resolutionSource: summaryMetrics.resolutionSource,
+    category: summaryMetrics.category,
+  });
   let detailSubtitle = "";
   if (selectedRow?.kind === "group") {
     detailSubtitle = summaryMetrics.category ?? "";
@@ -392,6 +400,7 @@ export function PredictionMarketDetailPane({
                 outcomeMarkets={catalogOutcomes ?? undefined}
                 selectedMarketKey={selectedSummary.key}
                 selectedRow={selectedRow}
+                settlement={settlement}
                 showChart={hasBook}
                 showRangeTabs={!nativePaneChrome}
                 summary={summaryMetrics}
@@ -404,6 +413,7 @@ export function PredictionMarketDetailPane({
                 failed={detailFailed}
                 loading={detailPending}
                 rules={detail?.rules ?? []}
+                settlement={settlement}
               />
             )}
           </ScrollBox>

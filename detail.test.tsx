@@ -20,7 +20,12 @@ import {
   emitKeypress,
   flushFrames,
 } from "./test-helpers";
-import type { PredictionDetailTab, PredictionHistoryRange, PredictionMarketDetail } from "./types";
+import type {
+  PredictionDetailTab,
+  PredictionHistoryRange,
+  PredictionMarketDetail,
+  PredictionMarketSummary,
+} from "./types";
 
 let testSetup: Awaited<ReturnType<typeof testRender>> | undefined;
 
@@ -244,6 +249,48 @@ describe("prediction markets detail views", () => {
     expect(testSetup.captureCharFrame()).not.toContain("1D");
   });
 
+  test("shows the on-screen settlement above the description and the rules", async () => {
+    testSetup = await testRender(
+      <SettlementHarness mode="detail" tab="overview" />,
+      { width: 80, height: 32 },
+    );
+    await flushFrames(testSetup);
+    let frame = testSetup.captureCharFrame();
+    expect(frame).toContain("Settlement");
+    expect(frame).toContain("Exchange settlement (CTM)");
+    expect(frame).toContain("CTM is the futures settlement, not a 15-minute print.");
+    expect(frame).not.toContain("CPI-U");
+    expect(frame.indexOf("Settlement")).toBeLessThan(frame.indexOf("Description"));
+    expect(frame.indexOf("Description")).toBeLessThan(frame.indexOf("Settles on the exchange print."));
+
+    testSetup = await renderSettlement("detail", "rules", testSetup);
+    frame = testSetup.captureCharFrame();
+    expect(frame).toContain("Exchange settlement (CTM)");
+    expect(frame).toContain("CTM is the futures settlement, not a 15-minute print.");
+    expect(frame.indexOf("Exchange settlement (CTM)")).toBeLessThan(
+      frame.indexOf("Resolves on the exchange print."),
+    );
+    expect(frame).not.toContain("CPI-U");
+  });
+
+  test("keeps a settlement match off the rules view while rules load or fail", async () => {
+    testSetup = await testRender(
+      <SettlementHarness mode="pending" tab="rules" />,
+      { width: 80, height: 32 },
+    );
+    await flushFrames(testSetup);
+    let frame = testSetup.captureCharFrame();
+    expect(frame).toContain("Loading rules.");
+    expect(frame).not.toContain("Settlement");
+    expect(frame).not.toContain("CPI-U");
+
+    testSetup = await renderSettlement("failed", "rules", testSetup);
+    frame = testSetup.captureCharFrame();
+    expect(frame).toContain("Rules unavailable.");
+    expect(frame).not.toContain("Settlement");
+    expect(frame).not.toContain("CPI-U");
+  });
+
 });
 
 const detailKeys = { tab: "overview" as PredictionDetailTab, range: "1M" as PredictionHistoryRange };
@@ -317,6 +364,108 @@ function DetailCopyHarness({
       />
     </DetailShell>
   );
+}
+
+function settlementSummary(
+  overrides: Partial<PredictionMarketSummary> = {},
+): PredictionMarketSummary {
+  return {
+    key: "gemini:cpi",
+    venue: "gemini",
+    marketId: "cpi",
+    title: "Will CPI rise?",
+    marketLabel: "Yes",
+    eventLabel: "CPI",
+    seriesTicker: "KXCPI",
+    category: "Economics",
+    tags: [],
+    status: "open",
+    url: "https://example.test/cpi",
+    description: "The print is CPI-U.",
+    endsAt: null,
+    updatedAt: null,
+    yesPrice: 0.5,
+    noPrice: 0.5,
+    yesBid: null,
+    yesAsk: null,
+    noBid: null,
+    noAsk: null,
+    spread: null,
+    lastTradePrice: null,
+    volume24h: null,
+    volume24hUnit: "usd",
+    totalVolume: null,
+    totalVolumeUnit: "usd",
+    openInterest: null,
+    openInterestUnit: "usd",
+    liquidity: null,
+    liquidityUnit: "usd",
+    ...overrides,
+  };
+}
+
+function SettlementHarness({
+  mode,
+  tab,
+}: {
+  mode: "detail" | "pending" | "failed";
+  tab: PredictionDetailTab;
+}) {
+  const selected = settlementSummary();
+  const onScreen = settlementSummary({
+    key: "gemini:wti",
+    marketId: "wti",
+    title: "WTI settle",
+    eventLabel: "WTI",
+    seriesTicker: "KXWTI",
+    description: "Settles on the exchange print.",
+  });
+  const [row] = buildPredictionListRows([selected]);
+  const scrollRef = useRef<ScrollBoxRenderable>(null);
+  const detail: PredictionMarketDetail | null = mode === "detail"
+    ? {
+        summary: onScreen,
+        siblings: [],
+        rules: ["Resolves on the exchange print."],
+        history: [],
+        book: { yesBids: [], yesAsks: [], noBids: [], noAsks: [], lastTradePrice: null },
+        trades: [],
+      }
+    : null;
+  return (
+    <DetailShell>
+      <PredictionMarketDetailPane
+        detail={detail}
+        detailError={mode === "failed" ? "nope" : null}
+        detailLoadCount={0}
+        detailTab={tab}
+        focused
+        height={32}
+        historyRange="1M"
+        onDetailTabChange={() => {}}
+        onHistoryRangeChange={() => {}}
+        onSelectMarket={() => {}}
+        scrollRef={scrollRef}
+        selectedRow={row!}
+        selectedSummary={selected}
+        width={80}
+      />
+    </DetailShell>
+  );
+}
+
+async function renderSettlement(
+  mode: "detail" | "pending" | "failed",
+  tab: PredictionDetailTab,
+  current: Awaited<ReturnType<typeof testRender>>,
+) {
+  await cleanupPredictionTest(current);
+  const next = await testRender(
+    <SettlementHarness mode={mode} tab={tab} />,
+    { width: 80, height: 32 },
+  );
+  await flushFrames(next);
+  return next;
 }
 
 async function renderCopy(
