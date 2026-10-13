@@ -6,18 +6,29 @@ import {
 } from "gloomberb/utils";
 
 const DEFAULT_SOURCE_KEY = "remote";
-const PREDICTION_FETCH = createThrottledFetch({
-  requestsPerMinute: 120,
-  maxRetries: 2,
-  timeoutMs: 10_000,
-  backoffBaseMs: 250,
-  dedupeGetRequests: false,
-  defaultHeaders: {
-    Accept: "application/json",
-    "User-Agent": "gloomberb-prediction-markets",
-  },
-  transport: httpFetch,
-});
+
+function createPredictionFetch() {
+  return createThrottledFetch({
+    requestsPerMinute: 120,
+    maxRetries: 2,
+    timeoutMs: 10_000,
+    backoffBaseMs: 250,
+    dedupeGetRequests: false,
+    defaultHeaders: {
+      Accept: "application/json",
+      "User-Agent": "gloomberb-prediction-markets",
+    },
+    transport: httpFetch,
+  });
+}
+
+let PREDICTION_FETCH = createPredictionFetch();
+
+/** Starts a fresh per-host request budget. Tests call it so one file's mocked
+ * requests do not hold up the next file behind the 120 a minute limit. */
+export function resetPredictionFetchThrottle(): void {
+  PREDICTION_FETCH = createPredictionFetch();
+}
 
 export const PREDICTION_CACHE_POLICIES = {
   catalog: { staleMs: 30_000, expireMs: 10 * 60_000 },
