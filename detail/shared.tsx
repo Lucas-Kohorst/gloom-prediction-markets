@@ -22,11 +22,6 @@ export function PredictionSettlementBlock({
       <Text fg={colors.text} width={width} wrapMode="word" wrapText>
         {line}
       </Text>
-      {match.aside !== null && (
-        <Text fg={colors.textDim} width={width} wrapMode="word" wrapText>
-          {match.aside}
-        </Text>
-      )}
     </Box>
   );
 }

@@ -6,109 +6,91 @@ type ListedMatch = Omit<SettlementMatch, "chart" | "catalog">;
 const cf = {
   label: "CF Benchmarks index",
   command: null,
-  aside: "The crypto quote is a different print.",
 };
 
 const pyth = {
   label: "Pyth price at the settle time",
   command: null,
-  aside: "The futures last trade is a different print.",
 };
 
 const binance = {
   label: "Binance price",
   command: null,
-  aside: "The crypto quote is a different print.",
 };
 
 const cpi = {
   label: "CPI-U",
   command: "CPI",
-  aside: null,
 };
 
 const payrolls = {
   label: "Payrolls and unemployment",
   command: "ECST",
-  aside: null,
 };
 
 const gdp = {
   label: "GDP and PCE",
   command: "ECST",
-  aside: null,
 };
 
 const recession = {
   label: "NBER recession dates",
   command: null,
-  aside: "This is not the GDP print.",
 };
 
 const treasury = {
   label: "Treasury yield",
   command: "GC",
-  aside: null,
 };
 
 const aaa = {
   label: "AAA regular gasoline",
   command: null,
-  aside: "DOE is the EIA weekly series.",
 };
 
 const eia = {
   label: "EIA petroleum",
   command: "DOE",
-  aside: null,
 };
 
 const exchange = {
   label: "Exchange settlement",
   command: "CTM",
-  aside: "CTM is the futures settlement, not a 15-minute print.",
 };
 
 const weather = {
   label: "Station temperature",
   command: null,
-  aside: null,
 };
 
 const fed = {
   label: "Fed funds target",
   command: "WIRP",
-  aside: "WIRP is the futures path. The meeting's cut, hold, or hike is the statement.",
 };
 
 const score = {
   label: "Final score",
   command: null,
-  aside: null,
 };
 
 const bill = {
   label: "Congress bill",
   command: null,
-  aside: null,
 };
 
 const register = {
   label: "Federal Register",
   command: null,
-  aside: null,
 };
 
 const strait = {
   label: "Strait traffic",
   command: "CHOKE",
-  aside: null,
 };
 
 const quake = {
   label: "Earthquake",
   command: null,
-  aside: null,
 };
 
 const cases: Array<{

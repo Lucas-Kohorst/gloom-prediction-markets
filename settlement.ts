@@ -1,7 +1,6 @@
 export interface SettlementMatch {
   label: string;
   command: string | null;
-  aside: string | null;
   chart: string | null;
   catalog: string | null;
 }
@@ -18,7 +17,6 @@ interface SettlementFacts {
 interface SettlementRule {
   label: string;
   command: string | null;
-  aside: string | null;
   when: (facts: SettlementFacts) => boolean;
 }
 
@@ -28,7 +26,6 @@ const RULES: readonly SettlementRule[] = [
   {
     label: "CF Benchmarks index",
     command: null,
-    aside: "The crypto quote is a different print.",
     when: ({ series, host }) =>
       startsWith(series, ["KXBTC", "KXETH", "KXSOL", "KXXRP"]) ||
       host === "cfbenchmarks.com",
@@ -36,19 +33,16 @@ const RULES: readonly SettlementRule[] = [
   {
     label: "Pyth price at the settle time",
     command: null,
-    aside: "The futures last trade is a different print.",
     when: ({ series, host }) => series.endsWith("15M") || host.includes("pyth"),
   },
   {
     label: "Binance price",
     command: null,
-    aside: "The crypto quote is a different print.",
     when: ({ host }) => host === "binance.com",
   },
   {
     label: "CPI-U",
     command: "CPI",
-    aside: null,
     when: ({ series, host, title }) =>
       seriesIs(series, ["KXCPI", "KXCPIYOY", "KXCPICORE", "KXCPICOREYOY", "KXECONSTATCPI"]) ||
       (host === "bls.gov" && titleHas(title, ["cpi", "inflation"])),
@@ -56,7 +50,6 @@ const RULES: readonly SettlementRule[] = [
   {
     label: "Payrolls and unemployment",
     command: "ECST",
-    aside: null,
     when: ({ series, host, title }) =>
       seriesIs(series, ["KXPAYROLLS", "KXU3", "KXJOBLESS"]) ||
       ((host === "bls.gov" || host === "dol.gov") &&
@@ -65,7 +58,6 @@ const RULES: readonly SettlementRule[] = [
   {
     label: "GDP and PCE",
     command: "ECST",
-    aside: null,
     when: ({ series, host, title }) =>
       seriesIs(series, ["KXGDP", "KXPCECORE"]) ||
       (host === "bea.gov" && titleHas(title, ["gdp", "pce"])),
@@ -73,13 +65,11 @@ const RULES: readonly SettlementRule[] = [
   {
     label: "NBER recession dates",
     command: null,
-    aside: "This is not the GDP print.",
     when: ({ host, title }) => host === "bea.gov" && titleHas(title, ["recession"]),
   },
   {
     label: "Treasury yield",
     command: "GC",
-    aside: null,
     when: ({ series, host, title }) =>
       startsWith(series, ["KXTNOTE", "KXUST"]) ||
       (host === "home.treasury.gov" && titleHas(title, ["yield", "treasury"])),
@@ -87,14 +77,12 @@ const RULES: readonly SettlementRule[] = [
   {
     label: "AAA regular gasoline",
     command: null,
-    aside: "DOE is the EIA weekly series.",
     when: ({ series, host }) =>
       startsWith(series, ["KXAAAGAS"]) || host === "gasprices.aaa.com",
   },
   {
     label: "EIA petroleum",
     command: "DOE",
-    aside: null,
     when: ({ series, host, title }) =>
       seriesIs(series, ["KXGAS", "KXOIL"]) ||
       (host === "eia.gov" && titleHas(title, ["gas", "oil"])),
@@ -102,14 +90,12 @@ const RULES: readonly SettlementRule[] = [
   {
     label: "Exchange settlement",
     command: "CTM",
-    aside: "CTM is the futures settlement, not a 15-minute print.",
     when: ({ series, host }) =>
       series === "KXWTI" || host === "theice.com" || host === "ice.com",
   },
   {
     label: "Station temperature",
     command: null,
-    aside: null,
     when: ({ series, host }) =>
       startsWith(series, ["KXHIGH", "KXLOW", "KXRAIN", "KXTEMP"]) ||
       host === "weather.com" ||
@@ -119,7 +105,6 @@ const RULES: readonly SettlementRule[] = [
   {
     label: "Fed funds target",
     command: "WIRP",
-    aside: "WIRP is the futures path. The meeting's cut, hold, or hike is the statement.",
     when: ({ series, host, title }) =>
       seriesIs(series, ["KXFEDDECISION", "KXFED", "KXRATECUT"]) ||
       (host === "federalreserve.gov" && titleHas(title, ["fed", "fomc", "rate"])),
@@ -127,7 +112,6 @@ const RULES: readonly SettlementRule[] = [
   {
     label: "Final score",
     command: null,
-    aside: null,
     when: ({ host, category }) =>
       hostIs(host, [
         "espn.com",
@@ -143,26 +127,22 @@ const RULES: readonly SettlementRule[] = [
   {
     label: "Congress bill",
     command: null,
-    aside: null,
     when: ({ host, title }) =>
       host === "congress.gov" && titleHas(title, ["bill", "h.r.", "act"]),
   },
   {
     label: "Federal Register",
     command: null,
-    aside: null,
     when: ({ host }) => host === "federalregister.gov",
   },
   {
     label: "Strait traffic",
     command: "CHOKE",
-    aside: null,
     when: ({ host }) => host === "portwatch.imf.org",
   },
   {
     label: "Earthquake",
     command: null,
-    aside: null,
     when: ({ host }) => host === "earthquake.usgs.gov",
   },
 ];
@@ -181,7 +161,6 @@ export function matchSettlement(input: {
   return {
     label: hit.label,
     command: hit.command,
-    aside: hit.aside,
     chart: view.chart,
     catalog: view.catalog,
   };

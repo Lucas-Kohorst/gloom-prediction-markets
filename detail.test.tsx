@@ -258,7 +258,6 @@ describe("prediction markets detail views", () => {
     let frame = testSetup.captureCharFrame();
     expect(frame).toContain("Settlement");
     expect(frame).toContain("Exchange settlement (CTM)");
-    expect(frame).toContain("CTM is the futures settlement, not a 15-minute print.");
     expect(frame).not.toContain("CPI-U");
     expect(frame.indexOf("Settlement")).toBeLessThan(frame.indexOf("Description"));
     expect(frame.indexOf("Description")).toBeLessThan(frame.indexOf("Settles on the exchange print."));
@@ -266,7 +265,6 @@ describe("prediction markets detail views", () => {
     testSetup = await renderSettlement("detail", "rules", testSetup);
     frame = testSetup.captureCharFrame();
     expect(frame).toContain("Exchange settlement (CTM)");
-    expect(frame).toContain("CTM is the futures settlement, not a 15-minute print.");
     expect(frame.indexOf("Exchange settlement (CTM)")).toBeLessThan(
       frame.indexOf("Resolves on the exchange print."),
     );
