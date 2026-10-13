@@ -86,6 +86,9 @@ test("catalog limit bounds provider search", async () => {
   expect(requested.filter((url) => url.includes("public-search"))).toHaveLength(1);
   expect(requested.some((url) => url.includes("gamma-api.polymarket.com/events/event-"))).toBe(false);
   expect(requested.some((url) => url.includes("api.elections.kalshi.com") && url.includes("limit=20"))).toBe(true);
+  // Only these two venues chart, so no other venue is searched.
+  expect(requested.map((url) => new URL(url).host).filter((host) =>
+    host !== "gamma-api.polymarket.com" && host !== "api.elections.kalshi.com")).toEqual([]);
 });
 
 test("polymarket resolution reloads the event and follows a rotated YES token", async () => {

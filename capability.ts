@@ -6,12 +6,7 @@ import {
   loadKalshiHistory,
   resolveKalshiChartSummary,
 } from "./services/kalshi/adapter";
-import { loadCryptoComCatalog } from "./services/crypto-com/adapter";
-import { loadGeminiCatalog } from "./services/gemini/adapter";
-import { loadLimitlessCatalog } from "./services/limitless/adapter";
 import { loadPolymarketCatalog } from "./services/polymarket/adapter";
-import { loadPascalCatalog } from "./services/pascal/adapter";
-import { loadPolymarketUsCatalog } from "./services/polymarket-us/adapter";
 import {
   loadPolymarketHistory,
   resolvePolymarketChartSummary,
@@ -102,14 +97,11 @@ async function catalog(
   limit = 8,
   signal?: AbortSignal,
 ): Promise<ChartSeriesCatalogItem[]> {
+  // Only Polymarket and Kalshi resolve to a price history (predictionSeriesId),
+  // so the other venues are not searched here.
   const providers = [
     { id: "polymarket", load: () => loadPolymarketCatalog(query, "all", { limit, signal }) },
     { id: "kalshi", load: () => loadKalshiCatalog(query, "all", { limit, signal }) },
-    { id: "gemini", load: () => loadGeminiCatalog(query, "all", { signal }) },
-    { id: "limitless", load: () => loadLimitlessCatalog(query, "all", { signal }) },
-    { id: "crypto-com", load: () => loadCryptoComCatalog(query, "all", { signal }) },
-    { id: "polymarket-us", load: () => loadPolymarketUsCatalog(query, "all", { signal }) },
-    { id: "pascal", load: () => loadPascalCatalog(query, "all", { signal }) },
   ] as const;
   const results = await Promise.allSettled(providers.map((provider) => provider.load()));
   if (signal?.aborted) throw signal.reason ?? new DOMException("Aborted", "AbortError");
