@@ -413,3 +413,16 @@ export function normalizeCryptoComCatalog(
   }
   return markets;
 }
+
+/** Narrows a catalog normalized with no query or category. One download then
+ * serves every category tab and search instead of crawling the venue again. */
+export function filterCryptoComCatalog(
+  markets: readonly PredictionMarketSummary[],
+  searchQuery = "",
+  categoryId: PredictionCategoryId = "all",
+): PredictionMarketSummary[] {
+  const query = searchQuery.trim().toLowerCase();
+  if (!query && categoryId === "all") return [...markets];
+  return markets.filter((market) =>
+    matchesCryptoComCategory(market, categoryId) && matchesSearch(market, query));
+}

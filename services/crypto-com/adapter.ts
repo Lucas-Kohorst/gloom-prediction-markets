@@ -5,7 +5,7 @@ import {
   loadCachedPredictionResource,
   PREDICTION_CACHE_POLICIES,
 } from "../fetch";
-import { normalizeCryptoComCatalog } from "./normalize";
+import { filterCryptoComCatalog, normalizeCryptoComCatalog } from "./normalize";
 import type {
   CryptoComEvent,
   CryptoComInstrument,
@@ -103,9 +103,11 @@ export async function loadCryptoComCatalog(
   options?: { signal?: AbortSignal },
 ): Promise<PredictionMarketSummary[]> {
   const normalizedQuery = searchQuery.trim().toLowerCase();
-  return await loadCachedPredictionResource(
+  // The API has no search or category filter, so the whole venue is one
+  // download (about 70 requests) shared by every tab and search.
+  const markets = await loadCachedPredictionResource(
     "catalog",
-    buildPredictionCatalogResourceKey("crypto-com", categoryId, normalizedQuery),
+    buildPredictionCatalogResourceKey("crypto-com", "all", ""),
     async () => {
       const signal = options?.signal;
       const events = await fetchEvents(signal);
@@ -117,8 +119,9 @@ export async function loadCryptoComCatalog(
         .map((instrument) => instrument.symbol?.trim())
         .filter((symbol): symbol is string => !!symbol);
       const tickers = instrumentSymbols.length > 0 ? await fetchTickers(instrumentSymbols, signal) : [];
-      return normalizeCryptoComCatalog(events, instruments, tickers, normalizedQuery, categoryId);
+      return normalizeCryptoComCatalog(events, instruments, tickers);
     },
     PREDICTION_CACHE_POLICIES.catalog,
   );
+  return filterCryptoComCatalog(markets, normalizedQuery, categoryId);
 }

@@ -388,3 +388,16 @@ export function normalizeLimitlessCatalog(
     },
   );
 }
+
+/** Narrows a catalog normalized with no query or category, so one download
+ * serves every category tab and search. */
+export function filterLimitlessCatalog(
+  markets: readonly PredictionMarketSummary[],
+  searchQuery = "",
+  categoryId: PredictionCategoryId = "all",
+): PredictionMarketSummary[] {
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  if (!normalizedQuery && categoryId === "all") return [...markets];
+  return markets.filter((summary) =>
+    matchesLimitlessCategory(summary, categoryId) && matchesSearch(summary, normalizedQuery));
+}

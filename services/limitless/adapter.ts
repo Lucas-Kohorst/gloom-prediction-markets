@@ -5,7 +5,7 @@ import {
   loadCachedPredictionResource,
   PREDICTION_CACHE_POLICIES,
 } from "../fetch";
-import { normalizeLimitlessCatalog } from "./normalize";
+import { filterLimitlessCatalog, normalizeLimitlessCatalog } from "./normalize";
 import type {
   LimitlessActiveMarket,
   LimitlessActiveMarketsResponse,
@@ -66,14 +66,12 @@ export async function loadLimitlessCatalog(
   categoryId: PredictionCategoryId = "all",
   options?: { signal?: AbortSignal },
 ): Promise<PredictionMarketSummary[]> {
-  const normalizedQuery = searchQuery.trim().toLowerCase();
-  return await loadCachedPredictionResource(
+  // The active list takes no search or category, so one download serves them all.
+  const markets = await loadCachedPredictionResource(
     "catalog",
-    buildPredictionCatalogResourceKey("limitless", categoryId, normalizedQuery),
-    async () => {
-      const markets = await fetchLimitlessActiveMarkets(options?.signal);
-      return normalizeLimitlessCatalog(markets, normalizedQuery, categoryId);
-    },
+    buildPredictionCatalogResourceKey("limitless", "all", ""),
+    async () => normalizeLimitlessCatalog(await fetchLimitlessActiveMarkets(options?.signal)),
     PREDICTION_CACHE_POLICIES.catalog,
   );
+  return filterLimitlessCatalog(markets, searchQuery, categoryId);
 }

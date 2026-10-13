@@ -8,7 +8,7 @@ import {
   loadCachedPredictionResource,
   PREDICTION_CACHE_POLICIES,
 } from "../fetch";
-import { normalizeGeminiCatalog } from "./normalize";
+import { filterGeminiCatalog, normalizeGeminiCatalog } from "./normalize";
 import type { GeminiEventRecord, GeminiEventsResponse } from "./types";
 
 const GEMINI_EVENT_LIMIT = 100;
@@ -79,13 +79,16 @@ export async function loadGeminiCatalog(
 ): Promise<PredictionMarketSummary[]> {
   const trimmedQuery = searchQuery.trim();
   const normalizedQuery = trimmedQuery.toLowerCase();
-  return await loadCachedPredictionResource(
+  // The API searches but has no category filter: one download per search
+  // serves every category tab.
+  const markets = await loadCachedPredictionResource(
     "catalog",
-    buildPredictionCatalogResourceKey("gemini", categoryId, normalizedQuery),
+    buildPredictionCatalogResourceKey("gemini", "all", normalizedQuery),
     async () => {
       const events = await fetchGeminiEvents(trimmedQuery, options?.signal);
-      return normalizeGeminiCatalog(events, normalizedQuery, categoryId);
+      return normalizeGeminiCatalog(events, normalizedQuery);
     },
     PREDICTION_CACHE_POLICIES.catalog,
   );
+  return filterGeminiCatalog(markets, normalizedQuery, categoryId);
 }

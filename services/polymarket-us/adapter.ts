@@ -8,7 +8,7 @@ import {
   loadCachedPredictionResource,
   PREDICTION_CACHE_POLICIES,
 } from "../fetch";
-import { normalizePolymarketUsCatalog } from "./normalize";
+import { filterPolymarketUsCatalog, normalizePolymarketUsCatalog } from "./normalize";
 import type { PolymarketUsMarketsResponse } from "./types";
 
 const POLYMARKET_US_PAGE_LIMIT = 100;
@@ -25,21 +25,18 @@ export async function loadPolymarketUsCatalog(
   categoryId: PredictionCategoryId = "all",
   options?: { signal?: AbortSignal },
 ): Promise<PredictionMarketSummary[]> {
-  const normalizedQuery = searchQuery.trim().toLowerCase();
-  return await loadCachedPredictionResource(
+  // The request takes no search or category, so one download serves them all.
+  const markets = await loadCachedPredictionResource(
     "catalog",
-    buildPredictionCatalogResourceKey("polymarket-us", categoryId, normalizedQuery),
+    buildPredictionCatalogResourceKey("polymarket-us", "all", ""),
     async () => {
       const response = await fetchJson<PolymarketUsMarketsResponse>(
         buildPolymarketUsCatalogUrl(),
         options?.signal,
       );
-      return normalizePolymarketUsCatalog(
-        response.markets ?? [],
-        normalizedQuery,
-        categoryId,
-      );
+      return normalizePolymarketUsCatalog(response.markets ?? []);
     },
     PREDICTION_CACHE_POLICIES.catalog,
   );
+  return filterPolymarketUsCatalog(markets, searchQuery, categoryId);
 }

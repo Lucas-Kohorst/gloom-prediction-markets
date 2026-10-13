@@ -67,6 +67,18 @@ describe("crypto.com event paging", () => {
     }
   });
 
+  test("one download serves every category tab and search", async () => {
+    const calls = installFetch(() => eventPage(["Bitcoin above 200k", "Weather"], null));
+
+    await loadCryptoComCatalog("", "all");
+    const searched = await loadCryptoComCatalog("bitcoin", "all");
+    const crypto = await loadCryptoComCatalog("", "crypto");
+
+    expect(searched.map((market) => market.marketId)).toEqual(["Bitcoin above 200k"]);
+    expect(crypto.map((market) => market.marketId)).toEqual(["Bitcoin above 200k"]);
+    expect(calls.filter((url) => url.includes("/get-events"))).toHaveLength(1);
+  });
+
   test("stops when the next cursor repeats", async () => {
     const calls = installFetch((url) => {
       const cursor = url.searchParams.get("cursor");

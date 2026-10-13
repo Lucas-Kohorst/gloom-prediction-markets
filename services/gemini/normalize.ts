@@ -188,3 +188,16 @@ export function normalizeGeminiCatalog(
     },
   );
 }
+
+/** Narrows a catalog normalized with no category, so one download per search
+ * serves every category tab. */
+export function filterGeminiCatalog(
+  markets: readonly PredictionMarketSummary[],
+  searchQuery = "",
+  categoryId: PredictionCategoryId = "all",
+): PredictionMarketSummary[] {
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  return markets.filter((summary) =>
+    (categoryId === "all" || matchesPredictionCategory(summary, categoryId)) &&
+    matchesGeminiSearch(summary, normalizedQuery));
+}

@@ -202,14 +202,23 @@ export function normalizePolymarketUsCatalog(
   searchQuery = "",
   categoryId: PredictionCategoryId = "all",
 ): PredictionMarketSummary[] {
-  const normalizedQuery = searchQuery.trim().toLowerCase();
   const summaries = withSharedEventIds(
     markets.flatMap((market) => {
       const normalized = normalizePolymarketUsMarket(market);
       return normalized ? [normalized] : [];
     }),
   );
+  return filterPolymarketUsCatalog(summaries, searchQuery, categoryId);
+}
 
+/** Narrows a catalog normalized with no query or category, so one download
+ * serves every category tab and search. */
+export function filterPolymarketUsCatalog(
+  summaries: readonly PredictionMarketSummary[],
+  searchQuery = "",
+  categoryId: PredictionCategoryId = "all",
+): PredictionMarketSummary[] {
+  const normalizedQuery = searchQuery.trim().toLowerCase();
   return summaries.filter((summary) => {
     const haystack = catalogHaystack(summary);
     if (categoryId !== "all" && !haystack.includes(categoryId)) return false;
