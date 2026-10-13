@@ -4,6 +4,7 @@ import { testRender } from "gloomberb/test-support";
 import { resetPredictionMarketsPersistence } from "../services/fetch";
 import type { PredictionMarketDetail, PredictionMarketSummary } from "../types";
 import {
+  BROWSE_SOCKET_REST_MS,
   mergePredictionDetailLoad,
   seedPredictionDetailCache,
   shouldSubscribePredictionDetailSocket,
@@ -321,4 +322,43 @@ test("an aborted detail load does not write the snapshot", async () => {
   await act(async () => {
     testSetup.renderer.destroy();
   });
+});
+
+let setBrowsed: ((summary: PredictionMarketSummary | null) => void) | null = null;
+
+function BrowseProbe() {
+  const [browsed, setCurrent] = useState<PredictionMarketSummary | null>(summary());
+  setBrowsed = setCurrent;
+  usePredictionDetailData({
+    focused: true,
+    detailOpen: false,
+    historyRange: "1M",
+    selectedSummary: null,
+    browseSummary: browsed,
+    setCatalogCache: writeCatalog,
+  });
+  return null;
+}
+
+test("the browse socket waits for the cursor to rest instead of one socket per row", async () => {
+  globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket;
+  const testSetup = await testRender(createElement(BrowseProbe), { width: 20, height: 4 });
+  for (const id of ["2", "3", "4"]) {
+    await act(async () => {
+      setBrowsed?.(summary({ key: `polymarket:${id}`, marketId: id, yesTokenId: `yes-${id}`, noTokenId: `no-${id}` }));
+      await testSetup.renderOnce();
+    });
+  }
+  expect(MockWebSocket.instances).toHaveLength(0);
+
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, BROWSE_SOCKET_REST_MS + 50));
+    await testSetup.renderOnce();
+  });
+  expect(MockWebSocket.instances).toHaveLength(1);
+
+  await act(async () => {
+    testSetup.renderer.destroy();
+  });
+  setBrowsed = null;
 });

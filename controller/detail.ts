@@ -124,6 +124,10 @@ export function shouldSubscribePredictionDetailSocket({
 
 const NO_WATCHLIST_COVERAGE: ReadonlySet<string> = new Set();
 
+// With detail closed the socket follows the highlighted row. Holding j or k
+// would open and close one socket per row, so it connects once the cursor rests.
+export const BROWSE_SOCKET_REST_MS = 400;
+
 interface UsePredictionDetailDataOptions {
   focused: boolean;
   detailOpen: boolean;
@@ -187,6 +191,8 @@ export function usePredictionDetailData({
   const loadedSummary = detail?.summary?.key === selectedSummaryKey ? detail.summary : null;
   const socketSummary = loadedSummary ?? selectedSummary ?? browseSummary;
   socketSummaryRef.current = socketSummary;
+  const browseSocketRef = useRef(false);
+  browseSocketRef.current = selectedSummary == null;
   const socketKey = socketSummary?.key ?? null;
   const socketYesTokenId = socketSummary?.yesTokenId ?? null;
   const socketNoTokenId = socketSummary?.noTokenId ?? null;
@@ -340,37 +346,48 @@ export function usePredictionDetailData({
     if (!detailSocketEnabled || !socketKey) return;
 
     const marketKey = socketKey;
-    return subscribePolymarketMarket(
-      [socketYesTokenId, socketNoTokenId].filter(
-        (value): value is string => !!value,
-      ),
-      {
-        onBestBidAsk: (assetId, bestBid, bestAsk, spread) => {
-          setTransportState("live");
-          applyLiveDetail(marketKey, (entry, touch) =>
-            applyPredictionBestBidAskUpdate(entry, assetId, bestBid, bestAsk, spread, touch),
-          );
+    let unsubscribe: (() => void) | null = null;
+    const connect = () => {
+      unsubscribe = subscribePolymarketMarket(
+        [socketYesTokenId, socketNoTokenId].filter(
+          (value): value is string => !!value,
+        ),
+        {
+          onBestBidAsk: (assetId, bestBid, bestAsk, spread) => {
+            setTransportState("live");
+            applyLiveDetail(marketKey, (entry, touch) =>
+              applyPredictionBestBidAskUpdate(entry, assetId, bestBid, bestAsk, spread, touch),
+            );
+          },
+          onBook: (assetId, bids, asks, lastTradePrice) => {
+            setTransportState("live");
+            applyLiveDetail(marketKey, (entry, touch) =>
+              applyPredictionBookUpdate(entry, assetId, bids, asks, lastTradePrice, touch),
+            );
+          },
+          onBookLevel: (assetId, side, price, size) => {
+            setTransportState("live");
+            applyLiveDetail(marketKey, (entry, touch) =>
+              applyPredictionBookLevelUpdate(entry, assetId, side, price, size, touch),
+            );
+          },
+          onTrade: (assetId, trade) => {
+            setTransportState("live");
+            applyLiveDetail(marketKey, (entry, touch) =>
+              applyPredictionTradeUpdate(entry, assetId, trade, touch),
+            );
+          },
         },
-        onBook: (assetId, bids, asks, lastTradePrice) => {
-          setTransportState("live");
-          applyLiveDetail(marketKey, (entry, touch) =>
-            applyPredictionBookUpdate(entry, assetId, bids, asks, lastTradePrice, touch),
-          );
-        },
-        onBookLevel: (assetId, side, price, size) => {
-          setTransportState("live");
-          applyLiveDetail(marketKey, (entry, touch) =>
-            applyPredictionBookLevelUpdate(entry, assetId, side, price, size, touch),
-          );
-        },
-        onTrade: (assetId, trade) => {
-          setTransportState("live");
-          applyLiveDetail(marketKey, (entry, touch) =>
-            applyPredictionTradeUpdate(entry, assetId, trade, touch),
-          );
-        },
-      },
-    );
+      );
+    };
+    // Read when the market changes, not as a dependency: opening detail on the
+    // row the cursor rests on keeps its socket.
+    const timer = browseSocketRef.current ? setTimeout(connect, BROWSE_SOCKET_REST_MS) : null;
+    if (!timer) connect();
+    return () => {
+      if (timer) clearTimeout(timer);
+      unsubscribe?.();
+    };
   }, [
     applyLiveDetail,
     detailSocketEnabled,
