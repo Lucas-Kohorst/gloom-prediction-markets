@@ -5,7 +5,7 @@ import type {
 } from "../../types";
 import {
   fetchJson,
-  loadCachedPredictionResource,
+  loadSharedPredictionResource,
   PREDICTION_CACHE_POLICIES,
 } from "../fetch";
 import { filterPolymarketUsCatalog, normalizePolymarketUsCatalog } from "./normalize";
@@ -26,17 +26,17 @@ export async function loadPolymarketUsCatalog(
   options?: { signal?: AbortSignal },
 ): Promise<PredictionMarketSummary[]> {
   // The request takes no search or category, so one download serves them all.
-  const markets = await loadCachedPredictionResource(
+  const markets = await loadSharedPredictionResource(
     "catalog",
     buildPredictionCatalogResourceKey("polymarket-us", "all", ""),
     async () => {
       const response = await fetchJson<PolymarketUsMarketsResponse>(
         buildPolymarketUsCatalogUrl(),
-        options?.signal,
       );
       return normalizePolymarketUsCatalog(response.markets ?? []);
     },
     PREDICTION_CACHE_POLICIES.catalog,
+    options?.signal,
   );
   return filterPolymarketUsCatalog(markets, searchQuery, categoryId);
 }

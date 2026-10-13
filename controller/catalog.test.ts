@@ -367,7 +367,8 @@ describe("aborted extra catalog loads", () => {
     await act(async () => {
       latestRefresh?.();
     });
-    expect(started).toBeGreaterThan(1);
+    // The refresh joins the venue download already in flight.
+    expect(started).toBe(1);
 
     await act(async () => {
       release();

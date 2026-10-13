@@ -79,6 +79,19 @@ describe("crypto.com event paging", () => {
     expect(calls.filter((url) => url.includes("/get-events"))).toHaveLength(1);
   });
 
+  test("a search that is aborted stops waiting but the list still gets the one download", async () => {
+    const calls = installFetch(() => eventPage(["Bitcoin above 200k"], null));
+    const controller = new AbortController();
+
+    const searched = loadCryptoComCatalog("bitcoin", "all", { signal: controller.signal });
+    const listed = loadCryptoComCatalog("", "all");
+    controller.abort();
+
+    await expect(searched).rejects.toMatchObject({ name: "AbortError" });
+    expect((await listed).map((market) => market.marketId)).toEqual(["Bitcoin above 200k"]);
+    expect(calls.filter((url) => url.includes("/get-events"))).toHaveLength(1);
+  });
+
   test("stops when the next cursor repeats", async () => {
     const calls = installFetch((url) => {
       const cursor = url.searchParams.get("cursor");

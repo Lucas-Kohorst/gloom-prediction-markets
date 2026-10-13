@@ -2,7 +2,7 @@ import { buildPredictionCatalogResourceKey } from "../../cache";
 import type { PredictionCategoryId, PredictionMarketSummary } from "../../types";
 import {
   fetchJson,
-  loadCachedPredictionResource,
+  loadSharedPredictionResource,
   PREDICTION_CACHE_POLICIES,
 } from "../fetch";
 import { filterLimitlessCatalog, normalizeLimitlessCatalog } from "./normalize";
@@ -67,11 +67,12 @@ export async function loadLimitlessCatalog(
   options?: { signal?: AbortSignal },
 ): Promise<PredictionMarketSummary[]> {
   // The active list takes no search or category, so one download serves them all.
-  const markets = await loadCachedPredictionResource(
+  const markets = await loadSharedPredictionResource(
     "catalog",
     buildPredictionCatalogResourceKey("limitless", "all", ""),
-    async () => normalizeLimitlessCatalog(await fetchLimitlessActiveMarkets(options?.signal)),
+    async () => normalizeLimitlessCatalog(await fetchLimitlessActiveMarkets()),
     PREDICTION_CACHE_POLICIES.catalog,
+    options?.signal,
   );
   return filterLimitlessCatalog(markets, searchQuery, categoryId);
 }

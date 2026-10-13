@@ -24,10 +24,12 @@ function createPredictionFetch() {
 
 let PREDICTION_FETCH = createPredictionFetch();
 
-/** Starts a fresh per-host request budget. Tests call it so one file's mocked
- * requests do not hold up the next file behind the 120 a minute limit. */
-export function resetPredictionFetchThrottle(): void {
+/** Starts a fresh per-host request budget and forgets shared downloads in
+ * flight. Tests call it so one test's mocked requests, or a download it left
+ * hanging, do not hold up the next one. */
+export function resetPredictionNetworkState(): void {
   PREDICTION_FETCH = createPredictionFetch();
+  sharedPredictionLoads.clear();
 }
 
 export const PREDICTION_CACHE_POLICIES = {
@@ -120,6 +122,58 @@ export async function loadCachedPredictionResource<T>(
     if (cached) return cached.value;
     throw error;
   }
+}
+
+const sharedPredictionLoads = new Map<string, Promise<unknown>>();
+
+function predictionAbortError(): Error {
+  const error = new Error("The operation was aborted.");
+  error.name = "AbortError";
+  return error;
+}
+
+function untilAborted<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise;
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(predictionAbortError());
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
+/**
+ * A whole-venue download that the list and a search scan ask for at the same
+ * time runs once. It is not tied to any one caller's signal: a search that a
+ * new keystroke aborts stops waiting, but the download finishes and is cached
+ * for the next query instead of starting over. Use it only for keys without a
+ * query, where every caller wants the same answer.
+ */
+export function loadSharedPredictionResource<T>(
+  kind: string,
+  key: string,
+  fetcher: () => Promise<T>,
+  cachePolicy: { staleMs: number; expireMs: number },
+  signal?: AbortSignal,
+): Promise<T> {
+  if (signal?.aborted) return Promise.reject(predictionAbortError());
+  const id = `${kind}\n${key}`;
+  let shared = sharedPredictionLoads.get(id) as Promise<T> | undefined;
+  if (!shared) {
+    shared = loadCachedPredictionResource(kind, key, fetcher, cachePolicy).finally(() => {
+      sharedPredictionLoads.delete(id);
+    });
+    sharedPredictionLoads.set(id, shared);
+  }
+  return untilAborted(shared, signal);
 }
 
 function summarizePredictionFetchUrl(url: string): string {

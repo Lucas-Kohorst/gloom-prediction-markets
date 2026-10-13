@@ -6,6 +6,7 @@ import type {
 import {
   fetchJson,
   loadCachedPredictionResource,
+  loadSharedPredictionResource,
   PREDICTION_CACHE_POLICIES,
 } from "../fetch";
 import { filterGeminiCatalog, normalizeGeminiCatalog } from "./normalize";
@@ -80,15 +81,25 @@ export async function loadGeminiCatalog(
   const trimmedQuery = searchQuery.trim();
   const normalizedQuery = trimmedQuery.toLowerCase();
   // The API searches but has no category filter: one download per search
-  // serves every category tab.
-  const markets = await loadCachedPredictionResource(
-    "catalog",
-    buildPredictionCatalogResourceKey("gemini", "all", normalizedQuery),
-    async () => {
-      const events = await fetchGeminiEvents(trimmedQuery, options?.signal);
-      return normalizeGeminiCatalog(events, normalizedQuery);
-    },
-    PREDICTION_CACHE_POLICIES.catalog,
-  );
+  // serves every category tab. A search stops when its query is replaced; the
+  // whole-venue list is shared with whoever else is waiting for it.
+  const resourceKey = buildPredictionCatalogResourceKey("gemini", "all", normalizedQuery);
+  const markets = normalizedQuery
+    ? await loadCachedPredictionResource(
+        "catalog",
+        resourceKey,
+        async () => normalizeGeminiCatalog(
+          await fetchGeminiEvents(trimmedQuery, options?.signal),
+          normalizedQuery,
+        ),
+        PREDICTION_CACHE_POLICIES.catalog,
+      )
+    : await loadSharedPredictionResource(
+        "catalog",
+        resourceKey,
+        async () => normalizeGeminiCatalog(await fetchGeminiEvents("")),
+        PREDICTION_CACHE_POLICIES.catalog,
+        options?.signal,
+      );
   return filterGeminiCatalog(markets, normalizedQuery, categoryId);
 }
