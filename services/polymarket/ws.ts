@@ -2,6 +2,8 @@ import type { PredictionBookLevel, PredictionTrade } from "../../types";
 import { parseFloatSafe } from "../fetch";
 
 const POLYMARKET_HEARTBEAT_MS = 10_000;
+const POLYMARKET_RECONNECT_MIN_MS = 1_500;
+const POLYMARKET_RECONNECT_MAX_MS = 30_000;
 
 interface PolymarketLiveCallbacks {
   onBestBidAsk?: (
@@ -130,6 +132,9 @@ export function subscribePolymarketMarket(
   let socket: WebSocket | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  // Doubles after each close that never opened, so a refused or offline socket
+  // backs off instead of reconnecting every 1.5 s for as long as the pane is up.
+  let reconnectDelayMs = POLYMARKET_RECONNECT_MIN_MS;
 
   const clearHeartbeat = () => {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
@@ -150,6 +155,7 @@ export function subscribePolymarketMarket(
       "wss://ws-subscriptions-clob.polymarket.com/ws/market",
     );
     socket.addEventListener("open", () => {
+      reconnectDelayMs = POLYMARKET_RECONNECT_MIN_MS;
       socket?.send(
         JSON.stringify({
           assets_ids: assetIds,
@@ -166,7 +172,8 @@ export function subscribePolymarketMarket(
       clearHeartbeat();
       socket = null;
       if (closed) return;
-      reconnectTimer = setTimeout(connect, 1_500);
+      reconnectTimer = setTimeout(connect, reconnectDelayMs);
+      reconnectDelayMs = Math.min(reconnectDelayMs * 2, POLYMARKET_RECONNECT_MAX_MS);
     });
     socket.addEventListener("error", () => {
       socket?.close();
