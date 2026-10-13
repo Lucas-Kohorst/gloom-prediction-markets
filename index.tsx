@@ -48,7 +48,12 @@ export const predictionMarketsPlugin: GloomPlugin = {
     "clob.polymarket.com",
     "data-api.polymarket.com",
     "api.elections.kalshi.com",
+    "api.gemini.com",
+    "api.limitless.exchange",
+    "api.crypto.com",
+    "gateway.polymarket.us",
     "data.pascal.trade",
+    "api.adjacent.markets",
   ],
 
   cliCommands: [predictionMarketsCliCommand],

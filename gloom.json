@@ -19,7 +19,12 @@
     "clob.polymarket.com",
     "data-api.polymarket.com",
     "api.elections.kalshi.com",
-    "data.pascal.trade"
+    "api.gemini.com",
+    "api.limitless.exchange",
+    "api.crypto.com",
+    "gateway.polymarket.us",
+    "data.pascal.trade",
+    "api.adjacent.markets"
   ],
   "contributes": {
     "panes": [
