@@ -71,7 +71,7 @@ const exchange = {
 
 const weather = {
   label: "Station temperature",
-  command: "WX",
+  command: null,
   aside: null,
 };
 
@@ -83,31 +83,31 @@ const fed = {
 
 const score = {
   label: "Final score",
-  command: "ODDS",
+  command: null,
   aside: null,
 };
 
 const bill = {
   label: "Congress bill",
-  command: "BILLS",
+  command: null,
   aside: null,
 };
 
 const register = {
   label: "Federal Register",
-  command: "FR",
+  command: null,
   aside: null,
 };
 
 const strait = {
   label: "Strait traffic",
-  command: "SHIP",
+  command: "CHOKE",
   aside: null,
 };
 
 const quake = {
   label: "Earthquake",
-  command: "QUAKE",
+  command: null,
   aside: null,
 };
 

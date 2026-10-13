@@ -22,6 +22,8 @@ interface SettlementRule {
   when: (facts: SettlementFacts) => boolean;
 }
 
+// A command must be a function in the released app (v0.17.0): typed in the
+// command bar, a code it does not know opens a ticker of the same name.
 const RULES: readonly SettlementRule[] = [
   {
     label: "CF Benchmarks index",
@@ -106,7 +108,7 @@ const RULES: readonly SettlementRule[] = [
   },
   {
     label: "Station temperature",
-    command: "WX",
+    command: null,
     aside: null,
     when: ({ series, host }) =>
       startsWith(series, ["KXHIGH", "KXLOW", "KXRAIN", "KXTEMP"]) ||
@@ -124,7 +126,7 @@ const RULES: readonly SettlementRule[] = [
   },
   {
     label: "Final score",
-    command: "ODDS",
+    command: null,
     aside: null,
     when: ({ host, category }) =>
       hostIs(host, [
@@ -140,26 +142,26 @@ const RULES: readonly SettlementRule[] = [
   },
   {
     label: "Congress bill",
-    command: "BILLS",
+    command: null,
     aside: null,
     when: ({ host, title }) =>
       host === "congress.gov" && titleHas(title, ["bill", "h.r.", "act"]),
   },
   {
     label: "Federal Register",
-    command: "FR",
+    command: null,
     aside: null,
     when: ({ host }) => host === "federalregister.gov",
   },
   {
     label: "Strait traffic",
-    command: "SHIP",
+    command: "CHOKE",
     aside: null,
     when: ({ host }) => host === "portwatch.imf.org",
   },
   {
     label: "Earthquake",
-    command: "QUAKE",
+    command: null,
     aside: null,
     when: ({ host }) => host === "earthquake.usgs.gov",
   },
