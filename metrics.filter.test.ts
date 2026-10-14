@@ -110,3 +110,16 @@ test("a starred search result stays in the list after the search results are gon
   const listed = withSavedWatchlistMarkets([], { [saved.key]: saved });
   expect(listed.map((market) => market.key)).toEqual([saved.key]);
 });
+
+test("All lists Polymarket and Kalshi, a picked venue lists its own, and the watchlist keeps every venue", () => {
+  const gemini: PredictionListRow = { ...row("gemini:fed", "Fed hold", "Economics", "fed hold"), venue: "gemini" };
+  const markets = [politics, gemini];
+  const starred = new Set(["gemini:fed"]);
+  const keys = (rows: PredictionListRow[]) => rows.map((market) => market.key);
+
+  expect(keys(filterPredictionMarkets(markets, "top", "all", "all", "", starred))).toEqual(["politics"]);
+  expect(keys(filterPredictionMarkets(markets, "top", "all", "all", "fed", starred))).toEqual([]);
+  expect(keys(filterPredictionMarkets(markets, "watchlist", "all", "all", "", starred))).toEqual(["gemini:fed"]);
+  expect(keys(filterPredictionMarkets(markets, "top", "gemini", "all", "", starred))).toEqual(["gemini:fed"]);
+  expect(keys(filterPredictionMarkets(markets, "top", "polymarket", "all", "", starred))).toEqual(["politics"]);
+});

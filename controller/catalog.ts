@@ -16,7 +16,6 @@ import { useAutoRefresh } from "gloomberb/react";
 import { getCachedPredictionResource } from "../services/fetch";
 import { loadCryptoComCatalog } from "../services/crypto-com/adapter";
 import { loadGeminiCatalog } from "../services/gemini/adapter";
-import { loadAdjacentEventSearch, type AdjacentSearchVenue } from "../services/adjacent-search";
 import { loadKalshiCatalogPage, loadMoreKalshiCatalog } from "../services/kalshi/adapter";
 import { streamKalshiSeriesSearch } from "../services/kalshi/series-search";
 import { loadLimitlessCatalog, loadLimitlessCatalogPage } from "../services/limitless/adapter";
@@ -29,7 +28,7 @@ import type {
   PredictionVenue,
   PredictionVenueScope,
 } from "../types";
-import { PREDICTION_VENUE_LABELS } from "../venues";
+import { PREDICTION_VENUE_LABELS, venueInScope } from "../venues";
 
 const EXTRA_VENUE_CATALOGS: ReadonlyArray<{
   venue: PredictionVenue;
@@ -121,7 +120,7 @@ export function seedCatalogPending(options: {
   if (options.includePolymarket) consider("polymarket");
   if (options.includeKalshi) consider("kalshi");
   for (const entry of EXTRA_VENUE_CATALOGS) {
-    if (options.venueScope !== "all" && options.venueScope !== entry.venue) continue;
+    if (!venueInScope(entry.venue, options.venueScope)) continue;
     consider(entry.venue);
   }
   return pending;
@@ -300,7 +299,7 @@ export function usePredictionCatalogData({
     );
   }, 0);
   const extraCatalogs = useMemo(() => EXTRA_VENUE_CATALOGS.flatMap(({ venue }) => {
-    if (venueScope !== "all" && venueScope !== venue) return [];
+    if (!venueInScope(venue, venueScope)) return [];
     const cacheKey = buildPredictionCatalogCacheKey(venue, categoryId, "");
     const resourceKey = buildPredictionCatalogResourceKey(venue, categoryId, normalizedCatalogQuery);
     const persisted = getCachedPredictionResource<PredictionMarketSummary[]>("catalog", resourceKey) ?? [];
@@ -340,8 +339,7 @@ export function usePredictionCatalogData({
     );
   }, 0);
   const loadExtraCatalogs = useCallback(async () => {
-    const venues = EXTRA_VENUE_CATALOGS.filter((entry) =>
-      venueScope === "all" || venueScope === entry.venue);
+    const venues = EXTRA_VENUE_CATALOGS.filter((entry) => venueInScope(entry.venue, venueScope));
     if (venues.length === 0) return;
     const signal = openCatalogLoad(extraAbortRef);
     await Promise.all(venues.map(async ({ venue, load }) => {
@@ -559,13 +557,7 @@ export function usePredictionCatalogData({
       query,
       categoryId,
       signal: controller.signal,
-      includePolymarket,
-      includeKalshi,
-      includeGemini: venueScope === "all" || venueScope === "gemini",
-      includeLimitless: venueScope === "all" || venueScope === "limitless",
-      includeCryptoCom: venueScope === "all" || venueScope === "crypto-com",
-      includePolymarketUs: venueScope === "all" || venueScope === "polymarket-us",
-      includePascal: venueScope === "all" || venueScope === "pascal",
+      venueScope,
       addHits,
     }).then((result) => {
       if (controller.signal.aborted) return;
@@ -659,17 +651,6 @@ function marketMatchesQuery(market: PredictionMarketSummary, query: string): boo
   ].join(" ").toLowerCase().includes(query);
 }
 
-export function visibleSearchHitCount(
-  markets: readonly PredictionMarketSummary[],
-  query: string,
-): number {
-  let count = 0;
-  for (const market of markets) {
-    if (marketMatchesQuery(market, query)) count += 1;
-  }
-  return count;
-}
-
 function appendSearchHits(
   current: PredictionMarketSummary[],
   markets: PredictionMarketSummary[],
@@ -685,30 +666,6 @@ function appendSearchHits(
   return next.length === current.length ? current : next;
 }
 
-function predictionEventKey(market: PredictionMarketSummary): string | null {
-  if (market.eventId) return `${market.venue}:event:${market.eventId}`;
-  if (market.venue === "kalshi" && market.eventTicker) return `kalshi:event:${market.eventTicker}`;
-  return null;
-}
-
-function marketIdShape(marketId: string): "numeric" | "condition" | "other" {
-  if (/^\d+$/.test(marketId)) return "numeric";
-  if (/^0x[0-9a-f]+$/i.test(marketId)) return "condition";
-  return "other";
-}
-
-function wouldDuplicateGroupedContracts(
-  current: readonly PredictionMarketSummary[],
-  hit: PredictionMarketSummary,
-): boolean {
-  const eventKey = predictionEventKey(hit);
-  if (!eventKey) return false;
-  const siblings = current.filter((market) => predictionEventKey(market) === eventKey);
-  if (siblings.length === 0) return false;
-  const hitShape = marketIdShape(hit.marketId);
-  return siblings.every((market) => marketIdShape(market.marketId) !== hitShape);
-}
-
 export function mergeSearchHitsIntoCatalog(
   catalog: readonly PredictionMarketSummary[],
   hits: readonly PredictionMarketSummary[],
@@ -717,7 +674,7 @@ export function mergeSearchHitsIntoCatalog(
   const merged = [...catalog];
   const seen = new Set(merged.map((market) => market.key));
   for (const market of hits) {
-    if (seen.has(market.key) || wouldDuplicateGroupedContracts(merged, market)) continue;
+    if (seen.has(market.key)) continue;
     seen.add(market.key);
     merged.push(market);
   }
@@ -734,138 +691,89 @@ function formatSearchScanNote(capped: readonly string[]): string | null {
   return `Stopped after more ${labels} pages.`;
 }
 
-async function streamPrimary(
-  query: string,
-  addHits: (markets: PredictionMarketSummary[]) => void,
-  primary: (publish: (markets: PredictionMarketSummary[]) => void) => Promise<unknown>,
-): Promise<number> {
-  let found = 0;
-  const publish = (markets: PredictionMarketSummary[]) => {
-    found += visibleSearchHitCount(markets, query);
-    if (markets.length === 0) return;
-    addHits(markets);
-  };
-  await primary(publish);
-  return found;
-}
-
-async function publishAdjacentFallback(
-  venue: AdjacentSearchVenue,
-  query: string,
-  signal: AbortSignal,
-  addHits: (markets: PredictionMarketSummary[]) => void,
-): Promise<void> {
-  if (signal.aborted) return;
-  try {
-    addHits(await loadAdjacentEventSearch(query, venue, signal));
-  } catch {
-    if (signal.aborted) return;
-  }
-}
-
+/** Searches the venues in `venueScope`: Polymarket and Kalshi under All, one venue when it is picked. */
 export async function scanSearchCatalogs(options: {
   query: string;
   categoryId: PredictionCategoryId;
   signal: AbortSignal;
-  includePolymarket: boolean;
-  includeKalshi: boolean;
-  includeGemini: boolean;
-  includeLimitless: boolean;
-  includeCryptoCom?: boolean;
-  includePolymarketUs: boolean;
-  includePascal: boolean;
+  venueScope: PredictionVenueScope;
   addHits: (markets: PredictionMarketSummary[]) => void;
 }): Promise<{ capped: string[] }> {
-  const { query, signal, addHits } = options;
+  const { query, signal, addHits, venueScope } = options;
   const searchCategory = categoryForPredictionQuery(query, options.categoryId);
   const tasks: Array<Promise<string | null>> = [];
-  if (options.includePolymarket) {
+  if (venueInScope("polymarket", venueScope)) {
     tasks.push((async () => {
-      const found = await streamPrimary(query, addHits, async (publish) => {
+      try {
+        addHits(await loadPolymarketSearchHits(query, searchCategory, 40, signal));
+      } catch {
+        if (signal.aborted) return null;
+      }
+      let offset = nextPolymarketCatalogOffset(searchCategory, "");
+      for (let page = 0; page < SEARCH_POLYMARKET_EXTRA_PAGES && offset != null && !signal.aborted; page += 1) {
         try {
-          publish(await loadPolymarketSearchHits(query, searchCategory, 40, signal));
+          const next = await loadMorePolymarketCatalog("", searchCategory, offset, signal);
+          addHits(next.markets);
+          if (!next.hasMore) break;
+          offset = next.nextOffset;
         } catch {
-          if (signal.aborted) return;
+          break;
         }
-        let offset = nextPolymarketCatalogOffset(searchCategory, "");
-        for (let page = 0; page < SEARCH_POLYMARKET_EXTRA_PAGES && offset != null && !signal.aborted; page += 1) {
-          try {
-            const next = await loadMorePolymarketCatalog("", searchCategory, offset, signal);
-            publish(next.markets);
-            if (!next.hasMore) break;
-            offset = next.nextOffset;
-          } catch {
-            break;
-          }
-        }
-      });
-      if (found === 0) await publishAdjacentFallback("polymarket", query, signal, addHits);
+      }
       return null;
     })());
   }
-  if (options.includeKalshi) {
+  if (venueInScope("kalshi", venueScope)) {
     tasks.push((async () => {
-      const found = await streamPrimary(query, addHits, (publish) =>
-        streamKalshiSeriesSearch(query, searchCategory, signal, publish));
-      if (found === 0) await publishAdjacentFallback("kalshi", query, signal, addHits);
+      await streamKalshiSeriesSearch(query, searchCategory, signal, addHits);
       return null;
     })());
   }
-  if (options.includeGemini) {
+  if (venueInScope("gemini", venueScope)) {
     tasks.push((async () => {
-      const found = await streamPrimary(query, addHits, async (publish) => {
-        try {
-          publish(await loadGeminiCatalog(query, searchCategory, { signal }));
-        } catch {
-          if (signal.aborted) return;
-        }
-      });
-      if (found === 0) await publishAdjacentFallback("gemini", query, signal, addHits);
+      try {
+        addHits(await loadGeminiCatalog(query, searchCategory, { signal }));
+      } catch {
+        if (signal.aborted) return null;
+      }
       return null;
     })());
   }
-  if (options.includePolymarketUs) {
+  if (venueInScope("polymarket-us", venueScope)) {
     tasks.push((async () => {
-      const found = await streamPrimary(query, addHits, async (publish) => {
-        try {
-          publish(await loadPolymarketUsCatalog(query, searchCategory, { signal }));
-        } catch {
-          if (signal.aborted) return;
-        }
-      });
-      if (found === 0) await publishAdjacentFallback("polymarket-us", query, signal, addHits);
+      try {
+        addHits(await loadPolymarketUsCatalog(query, searchCategory, { signal }));
+      } catch {
+        if (signal.aborted) return null;
+      }
       return null;
     })());
   }
-  if (options.includePascal) {
+  if (venueInScope("pascal", venueScope)) {
     tasks.push((async () => {
       if (query.length < 3) return null;
       let hitLimit = false;
-      await streamPrimary(query, addHits, async (publish) => {
-        try {
-          const markets = await loadPascalCatalog(query, searchCategory, { signal });
-          hitLimit = markets.length >= PASCAL_TEXT_SEARCH_LIMIT;
-          publish(markets);
-        } catch {
-          if (signal.aborted) return;
-        }
-      });
+      try {
+        const markets = await loadPascalCatalog(query, searchCategory, { signal });
+        hitLimit = markets.length >= PASCAL_TEXT_SEARCH_LIMIT;
+        addHits(markets);
+      } catch {
+        if (signal.aborted) return null;
+      }
       return hitLimit ? PREDICTION_VENUE_LABELS.pascal : null;
     })());
   }
-  if (options.includeCryptoCom) {
+  if (venueInScope("crypto-com", venueScope)) {
     tasks.push((async () => {
-      await streamPrimary(query, addHits, async (publish) => {
-        try {
-          publish(await loadCryptoComCatalog(query, searchCategory, { signal }));
-        } catch {
-          if (signal.aborted) return;
-        }
-      });
+      try {
+        addHits(await loadCryptoComCatalog(query, searchCategory, { signal }));
+      } catch {
+        if (signal.aborted) return null;
+      }
       return null;
     })());
   }
-  if (options.includeLimitless) {
+  if (venueInScope("limitless", venueScope)) {
     tasks.push((async () => {
       let reachedLastPage = false;
       let lastHasMore = false;

@@ -11,7 +11,7 @@ import type {
   PredictionVolumeUnit,
 } from "./types";
 import { matchesPredictionCategory } from "./categories";
-import { PREDICTION_VENUE_LABELS } from "./venues";
+import { PREDICTION_VENUE_LABELS, venueInScope } from "./venues";
 
 const TEXT_SORT_COLUMNS = new Set([
   "market",
@@ -216,8 +216,11 @@ export function filterPredictionMarkets(
 ): PredictionListRow[] {
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
+  // All shows Polymarket and Kalshi. A starred market from another venue is
+  // saved with the list, so only the watchlist view lists it under All.
+  const showEveryVenue = venueScope === "all" && browseTab === "watchlist";
   return markets.filter((market) => {
-    if (venueScope !== "all" && market.venue !== venueScope) return false;
+    if (!showEveryVenue && !venueInScope(market.venue, venueScope)) return false;
     if (!normalizedQuery && !matchesPredictionCategory(market, categoryId)) return false;
     if (
       browseTab === "watchlist" &&

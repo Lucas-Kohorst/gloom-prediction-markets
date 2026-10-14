@@ -16,7 +16,7 @@ const VENUE_SCOPE_OPTIONS: PaneSettingOption[] = [
   {
     value: "all",
     label: "All Venues",
-    description: "Merge every venue into one browser.",
+    description: "Browse Polymarket and Kalshi together.",
   },
   ...PREDICTION_VENUE_ORDER.map((venue) => ({
     value: venue,

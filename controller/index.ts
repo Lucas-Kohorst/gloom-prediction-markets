@@ -32,6 +32,7 @@ import type {
   PredictionSortPreference,
   PredictionVenueScope,
 } from "../types";
+import { venueInScope } from "../venues";
 
 const KEYBOARD_DETAIL_LOAD_DELAY_MS = 140;
 const SELECTION_PERSIST_DEBOUNCE_MS = 300;
@@ -158,10 +159,8 @@ export function usePredictionMarketsController({
   const effectiveVenueScope = paneSettings.hideTabs
     ? paneSettings.lockedVenueScope
     : venueScope;
-  const includePolymarket =
-    effectiveVenueScope === "all" || effectiveVenueScope === "polymarket";
-  const includeKalshi =
-    effectiveVenueScope === "all" || effectiveVenueScope === "kalshi";
+  const includePolymarket = venueInScope("polymarket", effectiveVenueScope);
+  const includeKalshi = venueInScope("kalshi", effectiveVenueScope);
   const watchlistSet = useMemo(() => new Set(watchlist), [watchlist]);
   const visibleColumns = useMemo(
     () => resolvePredictionColumns(paneSettings.columnIds),

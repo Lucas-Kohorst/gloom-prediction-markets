@@ -53,7 +53,6 @@ export const predictionMarketsPlugin: GloomPlugin = {
     "api.crypto.com",
     "gateway.polymarket.us",
     "data.pascal.trade",
-    "api.adjacent.markets",
   ],
 
   cliCommands: [predictionMarketsCliCommand],

@@ -23,8 +23,7 @@
     "api.limitless.exchange",
     "api.crypto.com",
     "gateway.polymarket.us",
-    "data.pascal.trade",
-    "api.adjacent.markets"
+    "data.pascal.trade"
   ],
   "contributes": {
     "panes": [
